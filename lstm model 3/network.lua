@@ -28,12 +28,14 @@ mlp:add(nn.LSTM(hiddenSize, hiddenSize, rho))
 mlp:add(nn.Linear(hiddenSize, #numberToChar))
 
 samplingRnn = mlp:clone('weight','bias')
-
-mlp:add(nn.LogSoftMax())
+samplingRnn.modules[1]:evaluate() --nastaveni LSTM vrstev at si nepamatuji aktivace
+samplingRnn.modules[2]:evaluate() --neni potreba pro sampling rnn
 samplingRnn = samplingRnn:add(nn.SoftMax())
 
+mlp:add(nn.LogSoftMax())
 rnn = nn.Sequencer(mlp)
-samplingRnn = nn.Sequencer(samplingRnn)
+
+
 --loss funkce
 criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 
@@ -94,27 +96,29 @@ end
 
 
 function sample()
-    local inputs = {}
 
     local ind = torch.LongTensor(1)
+    local prediction, sample, sampleCoded
     for i = 1,rho do
         ind[1] = i
-        table.insert(inputs,sequenceCoded:index(1,ind))
-        print('. '..numberToChar[sequence[i]])
+        -- print('. '..sequenceCoded:index(1,ind))
+        io.write(numberToChar[sequence[i]])
+        prediction = samplingRnn:forward(sequenceCoded:index(1,ind))
     end
+    io.write(' || ')
+    for i=1,10 do
+        sample = torch.multinomial(prediction[1],1)
+        io.write(numberToChar[sample[1]])
 
-    for i=1,5 do
-        local prediction = samplingRnn:forward(inputs)
-        local s = torch.multinomial(prediction[rho][1],1)
-        print('> '..numberToChar[s[1]])
+        sampleCoded = torch.Tensor(1, #numberToChar):zero()
+        sampleCoded[1][sample[1]] = 1
 
-        local charCoded = torch.Tensor(1, #numberToChar):zero()
-        charCoded[1][s[1]] = 1
-        table.insert(inputs,charCoded)
-        table.remove(inputs,1)
+        prediction = samplingRnn:forward(sampleCoded)
     end
-
+    io.write('\n')
 end
+
+sample()
 
 sgd_params = {
    learningRate = 0.1,
@@ -122,7 +126,6 @@ sgd_params = {
    weightDecay = 0,
    momentum = 0
 }
-
 
 for e = 1,epochs do
 
