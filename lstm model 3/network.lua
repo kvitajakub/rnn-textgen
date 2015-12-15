@@ -8,7 +8,7 @@ require 'readFile'
 inputFile = "../text/input.txt"
 hiddenSize = 100
 rho = 30
-batchSize = 100
+batchSize = 10
 sgd_params = {
    learningRate = 0.1,
    learningRateDecay = 1e-4,
@@ -28,17 +28,10 @@ end
 
 --network creation
 -- rnn for training with Sequencer and negative log likelihood criterion
--- samplingRnn cloned network for sampling online without Sequencer and with softmax layer
 rnn = nn.Sequential()
 rnn:add(nn.LSTM(#numberToChar, hiddenSize, rho))
 rnn:add(nn.LSTM(hiddenSize, hiddenSize, rho))
 rnn:add(nn.Linear(hiddenSize, #numberToChar))
-
-samplingRnn = rnn:clone('weight','bias')
-samplingRnn.modules[1]:evaluate() --no need to remember history
-samplingRnn.modules[2]:evaluate()
-samplingRnn = samplingRnn:add(nn.SoftMax())
-
 rnn:add(nn.LogSoftMax())
 rnn = nn.Sequencer(rnn)
 
@@ -69,9 +62,7 @@ end
 -- it extracts a mini_batch via the nextBatch method
 function feval(x_new)
 
-    local x, x_grad = rnn:getParameters()
-
-	-- copy the weight if are changed
+    -- copy the weight if are changed, not usually used
 	if x ~= x_new then
 		x:copy(x_new)
 	end
@@ -93,42 +84,49 @@ end
 --sampling with current network
 function sample(samples)
 
-    samples = samples or 10
+    samples = samples or rho
 
-    local ind = torch.LongTensor(1)
+    local samplingRnn = rnn:get(1):get(1):clone()
+    samplingRnn:evaluate() --no need to remember history
+    samplingRnn:remove(#samplingRnn.modules) --remove last layer LogSoftMax
+    samplingRnn:add(nn.SoftMax()) --add regular SoftMax
+    samplingRnn:forget() --!!!!!! IMPORTANT reset inner step count
+
+    print('======Sampling==============================================')
+
     local prediction, sample, sampleCoded
     for i = 1,rho do
-        ind[1] = i
         io.write(numberToChar[sequence[i]])
-        prediction = samplingRnn:forward(sequenceCoded:index(1,ind))
+        prediction = samplingRnn:forward(sequenceCoded[i])
     end
-    io.write(' || ')
+    io.write('|||')
+
     for i=1,samples do
-        sample = torch.multinomial(prediction[1],1)
+        sample = torch.multinomial(prediction,1)
         io.write(numberToChar[sample[1]])
 
-        sampleCoded = torch.Tensor(1, #numberToChar):zero()
-        sampleCoded[1][sample[1]] = 1
+        sampleCoded = torch.Tensor(#numberToChar):zero()
+        sampleCoded[sample[1]] = 1
 
         prediction = samplingRnn:forward(sampleCoded)
     end
     io.write('\n')
+    print('============================================================')
 end
 
 -- rnn = torch.load('model.dat')
+x, x_grad = rnn:getParameters() -- w,w_grad
 
-
--- get weights and loss wrt weights from the model
-x, _ = rnn:getParameters() -- w,w_grad
 
 while true do
-    _, fs = optim.sgd(feval, x, sgd_params)
+-- get weights and loss wrt weights from the model
+    res, fs = optim.sgd(feval, x, sgd_params)
 
-    if sgd_params.evalCounter%100==0 then
-        print(string.format('error for minibatch %5f is %f', sgd_params.evalCounter, fs[1] / rho))
+    if sgd_params.evalCounter%10==0 then
+        print(string.format('error for minibatch %4.1f is %4.7f', sgd_params.evalCounter, fs[1] / rho))
         -- torch.save('model.dat', rnn)
-        if sgd_params.evalCounter%1000==0 then
-            sample()
-        end
+    end
+    if sgd_params.evalCounter%20==0 then
+        sample()
     end
 end
