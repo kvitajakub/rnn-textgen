@@ -10,10 +10,12 @@ hiddenSize = 100
 rho = 30
 batchSize = 10
 sgd_params = {
-   learningRate = 0.1,
+   learningRate = 0.15,
    learningRateDecay = 1e-4,
    weightDecay = 0,
-   momentum = 0
+   momentum = 0.6,
+   nesterov = true,
+   dampening = 0
 }
 
 
@@ -114,19 +116,26 @@ function sample(samples)
     print('============================================================')
 end
 
--- rnn = torch.load('model.dat')
-x, x_grad = rnn:getParameters() -- w,w_grad
 
+if path.exists('model.dat') then
+    rnn = torch.load('model.dat')
+    print('Model loaded.')
+end
+
+x, x_grad = rnn:getParameters() -- w,w_grad
 
 while true do
 -- get weights and loss wrt weights from the model
     res, fs = optim.sgd(feval, x, sgd_params)
 
-    if sgd_params.evalCounter%10==0 then
-        print(string.format('error for minibatch %4.1f is %4.7f', sgd_params.evalCounter, fs[1] / rho))
-        -- torch.save('model.dat', rnn)
-    end
     if sgd_params.evalCounter%20==0 then
+        print(string.format('error for minibatch %4.1f is %4.7f', sgd_params.evalCounter, fs[1] / rho))
+    end
+    if sgd_params.evalCounter%100==0 then
         sample()
+    end
+    if sgd_params.evalCounter%250==0 then
+        torch.save('model.dat', rnn)
+        print("Model saved to model.dat")
     end
 end
