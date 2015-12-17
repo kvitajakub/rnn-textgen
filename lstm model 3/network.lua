@@ -6,14 +6,14 @@ require 'optim'
 require 'readFile'
 
 inputFile = "../text/input.txt"
-hiddenSize = 100
-rho = 30
-batchSize = 10
+hiddenSize = 150
+rho = 40
+batchSize = 20
 sgd_params = {
-   learningRate = 0.15,
+   learningRate = 0.25,
    learningRateDecay = 1e-4,
    weightDecay = 0,
-   momentum = 0.6,
+   momentum = 0.9,
    nesterov = true,
    dampening = 0
 }
@@ -86,7 +86,7 @@ end
 --sampling with current network
 function sample(samples)
 
-    samples = samples or rho
+    samples = samples or 2*rho
 
     local samplingRnn = rnn:get(1):get(1):clone()
     samplingRnn:evaluate() --no need to remember history
@@ -97,11 +97,12 @@ function sample(samples)
     print('======Sampling==============================================')
 
     local prediction, sample, sampleCoded
-    for i = 1,rho do
+    local randomStart = math.ceil(torch.random(1,((#sequence)[1]-rho)))
+    for i = randomStart,randomStart+rho do
         io.write(numberToChar[sequence[i]])
         prediction = samplingRnn:forward(sequenceCoded[i])
     end
-    io.write('|||')
+    io.write('__|||__')
 
     for i=1,samples do
         sample = torch.multinomial(prediction,1)
