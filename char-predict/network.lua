@@ -10,10 +10,10 @@ hiddenSize = 150
 rho = 40
 batchSize = 20
 sgd_params = {
-   learningRate = 0.25,
+   learningRate = 0.05,
    learningRateDecay = 1e-4,
    weightDecay = 0,
-   momentum = 0.9,
+   momentum = 0.95,
    nesterov = true,
    dampening = 0
 }
@@ -39,10 +39,15 @@ rnn = nn.Sequencer(rnn)
 
 criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 
+--INICIALIZATION
+-- A1: initialization often depends on each dataset.
+--rnn:getParameters():uniform(-0.1, 0.1)
+
+
 -- minibatch computation
 -- random subsequences from whole text
 function nextBatch()
-	local offsets, inputs, targets = {}, {}, {}
+    local offsets, inputs, targets = {}, {}, {}
 
     for i = 1,batchSize do
         table.insert(offsets,math.ceil(torch.random(1,((#sequence)[1]-rho))))
@@ -65,20 +70,20 @@ end
 function feval(x_new)
 
     -- copy the weight if are changed, not usually used
-	if x ~= x_new then
-		x:copy(x_new)
-	end
+    if x ~= x_new then
+        x:copy(x_new)
+    end
 
 	local inputs, targets = nextBatch()
 
 	-- reset gradients (gradients are always accumulated, to accommodate batch methods)
     rnn:zeroGradParameters()
 
-	-- evaluate the loss function and its derivative wrt x, given mini batch
-	local prediction = rnn:forward(inputs)
-	local error = criterion:forward(prediction, targets)
+    -- evaluate the loss function and its derivative wrt x, given mini batch
+    local prediction = rnn:forward(inputs)
+    local error = criterion:forward(prediction, targets)
     local gradOutputs = criterion:backward(prediction, targets)
-	rnn:backward(inputs, gradOutputs)
+    rnn:backward(inputs, gradOutputs)
 
 	return error, x_grad
 end
