@@ -1,14 +1,30 @@
 --usual
 require 'rnn'
 require 'optim'
-
+require 'torch'
+--uncommon
 --local
 require 'readFile'
 
-inputFile = "../text/input.txt"
-hiddenSize = 150
-rho = 40
-batchSize = 20
+
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text()
+cmd:text('Training a simple LSTM network for next character prediction.')
+cmd:text()
+cmd:text('Options')
+cmd:option('-inputFile',"../text/input.txt",'File with the input data.')
+cmd:option('-hiddenSize',200,'Number of units in the hidden layer.')
+cmd:option('-layers',2,'Number of hidden layers.')
+cmd:option('-rho',40,'How far past are we looking.')
+cmd:option('-batchSize',20,'Minibatch size.')
+cmd:option('-modelName','model.dat','name of the model to be saved or loaded.')
+cmd:text()
+
+-- parse input params
+opt = cmd:parse(arg)
+
+
 sgd_params = {
    learningRate = 0.05,
    learningRateDecay = 1e-4,
@@ -19,29 +35,55 @@ sgd_params = {
 }
 
 
--- data loading and sequence creation
-text, charToNumber, numberToChar = readFile:processFile(inputFile)
-sequence = torch.Tensor(#text):zero()  --tensor representing chars as numbers, suitable for NLL criterion output
-sequenceCoded = torch.Tensor(#text, #numberToChar):zero() --tensor for network input, 1 from N coding
-for i = 1,#text do
-    sequence[i] = charToNumber[text:sub(i,i)]
-    sequenceCoded[i][sequence[i]] = 1
+-- --try to load model
+if path.exists(opt.modelName) then
+    rnn = torch.load(opt.modelName)
+    print('Model '..opt.modelName..' loaded.')
+    print('Parameters overriden.')
+    print(rnn.opt)
+
+    --load inputFile
+    -- data loading and sequence creation
+    text, charToNumber, numberToChar = readFile:processFile(rnn.opt.inputFile)
+    sequence = torch.Tensor(#text):zero()  --tensor representing chars as numbers, suitable for NLL criterion output
+    sequenceCoded = torch.Tensor(#text, #numberToChar):zero() --tensor for network input, 1 from N coding
+    for i = 1,#text do
+        sequence[i] = charToNumber[text:sub(i,i)]
+        sequenceCoded[i][sequence[i]] = 1
+    end
+
+else
+    --model not available, create new
+    -- data loading and sequence creation
+    text, charToNumber, numberToChar = readFile:processFile(opt.inputFile)
+    sequence = torch.Tensor(#text):zero()  --tensor representing chars as numbers, suitable for NLL criterion output
+    sequenceCoded = torch.Tensor(#text, #numberToChar):zero() --tensor for network input, 1 from N coding
+    for i = 1,#text do
+        sequence[i] = charToNumber[text:sub(i,i)]
+        sequenceCoded[i][sequence[i]] = 1
+    end
+
+    --network creation
+    -- rnn for training with Sequencer and negative log likelihood criterion
+    rnn = nn.Sequential()
+    rnn:add(nn.LSTM(#numberToChar, opt.hiddenSize, opt.rho))
+    for i=1,opt.layers do
+        rnn:add(nn.LSTM(opt.hiddenSize, opt.hiddenSize, opt.rho))
+    end
+    rnn:add(nn.Linear(opt.hiddenSize, #numberToChar))
+    rnn:add(nn.LogSoftMax())
+    rnn = nn.Sequencer(rnn)
+
+    --pridame opt do rnn aby se nam pak ulozilo
+    rnn.opt = opt
+
+    --INICIALIZATION
+    -- A1: initialization often depends on each dataset.
+    --rnn:getParameters():uniform(-0.1, 0.1)
 end
 
---network creation
--- rnn for training with Sequencer and negative log likelihood criterion
-rnn = nn.Sequential()
-rnn:add(nn.LSTM(#numberToChar, hiddenSize, rho))
-rnn:add(nn.LSTM(hiddenSize, hiddenSize, rho))
-rnn:add(nn.Linear(hiddenSize, #numberToChar))
-rnn:add(nn.LogSoftMax())
-rnn = nn.Sequencer(rnn)
-
+--create criterion
 criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
-
---INICIALIZATION
--- A1: initialization often depends on each dataset.
---rnn:getParameters():uniform(-0.1, 0.1)
 
 
 -- minibatch computation
@@ -49,12 +91,12 @@ criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 function nextBatch()
     local offsets, inputs, targets = {}, {}, {}
 
-    for i = 1,batchSize do
-        table.insert(offsets,math.ceil(torch.random(1,((#sequence)[1]-rho))))
+    for i = 1,rnn.opt.batchSize do
+        table.insert(offsets,math.ceil(torch.random(1,((#sequence)[1]-rnn.opt.rho))))
     end
     offsets = torch.LongTensor(offsets)
 
-    for i = 1,rho do
+    for i = 1,rnn.opt.rho do
         table.insert(inputs,sequenceCoded:index(1,offsets))
         offsets:add(1)
         table.insert(targets,sequence:index(1,offsets))
@@ -91,7 +133,7 @@ end
 --sampling with current network
 function sample(samples)
 
-    samples = samples or 2*rho
+    samples = samples or 2*rnn.opt.rho
 
     local samplingRnn = rnn:get(1):get(1):clone()
     samplingRnn:evaluate() --no need to remember history
@@ -102,8 +144,8 @@ function sample(samples)
     print('======Sampling==============================================')
 
     local prediction, sample, sampleCoded
-    local randomStart = math.ceil(torch.random(1,((#sequence)[1]-rho)))
-    for i = randomStart,randomStart+rho do
+    local randomStart = math.ceil(torch.random(1,((#sequence)[1]-rnn.opt.rho)))
+    for i = randomStart,randomStart+rnn.opt.rho do
         io.write(numberToChar[sequence[i]])
         prediction = samplingRnn:forward(sequenceCoded[i])
     end
@@ -122,12 +164,6 @@ function sample(samples)
     print('============================================================')
 end
 
-
-if path.exists('model.dat') then
-    rnn = torch.load('model.dat')
-    print('Model loaded.')
-end
-
 x, x_grad = rnn:getParameters() -- w,w_grad
 
 while true do
@@ -135,13 +171,13 @@ while true do
     res, fs = optim.sgd(feval, x, sgd_params)
 
     if sgd_params.evalCounter%20==0 then
-        print(string.format('error for minibatch %4.1f is %4.7f', sgd_params.evalCounter, fs[1] / rho))
+        print(string.format('error for minibatch %4.1f is %4.7f', sgd_params.evalCounter, fs[1] / rnn.opt.rho))
     end
     if sgd_params.evalCounter%100==0 then
         sample()
     end
     if sgd_params.evalCounter%250==0 then
-        torch.save('model.dat', rnn)
-        print("Model saved to model.dat")
+        torch.save(rnn.opt.modelName, rnn)
+        print("Model saved to "..rnn.opt.modelName)
     end
 end
