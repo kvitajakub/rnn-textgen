@@ -3,6 +3,8 @@ require 'rnn'
 require 'optim'
 require 'torch'
 --uncommon
+require 'cutorch'
+require 'cunn'
 --local
 require 'readFile'
 
@@ -10,27 +12,37 @@ require 'readFile'
 cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
-cmd:text('Training a simple LSTM network for next character prediction.')
+cmd:text('Training a simple network for next character prediction.')
 cmd:text()
 cmd:text('Options')
-cmd:option('-inputFile',"../text/input.txt",'File with the input data.')
-cmd:option('-hiddenSize',200,'Number of units in the hidden layer.')
-cmd:option('-layers',2,'Number of hidden layers.')
+cmd:option('-inputFile',"../text/shakespeare.txt",'File with the input data.')
+cmd:option('-hiddenSize',400,'Number of units in the hidden layer.')
+cmd:option('-layers',3,'Number of recurrent layers. (At least one.)')
 cmd:option('-rho',40,'How far past are we looking.')
 cmd:option('-batchSize',20,'Minibatch size.')
 cmd:option('-modelName','model.dat','name of the model to be saved or loaded.')
+-- cmd:option('-gpu',0,'Use cpu(=0) or gpu(>0)')
 cmd:text()
 
 -- parse input params
 opt = cmd:parse(arg)
 
 
+-- sgd_params = {
+--    learningRate = 0.05,
+--    learningRateDecay = 1e-4,
+--    weightDecay = 0,
+--    momentum = 0.95,
+--    nesterov = true,
+--    dampening = 0
+-- }
+
 sgd_params = {
-   learningRate = 0.05,
-   learningRateDecay = 1e-4,
-   weightDecay = 0,
-   momentum = 0.95,
-   nesterov = true,
+   learningRate = 0.02,
+   learningRateDecay = 0,
+   weightDecay = 0.001,
+   momentum = 0,
+   nesterov = false,
    dampening = 0
 }
 
@@ -66,8 +78,8 @@ else
     --network creation
     -- rnn for training with Sequencer and negative log likelihood criterion
     rnn = nn.Sequential()
-    rnn:add(nn.LSTM(#numberToChar, opt.hiddenSize, opt.rho))
-    for i=1,opt.layers do
+    rnn:add(nn.LSTM(#numberToChar, opt.hiddenSize))
+    for i=2,opt.layers do
         rnn:add(nn.LSTM(opt.hiddenSize, opt.hiddenSize, opt.rho))
     end
     rnn:add(nn.Linear(opt.hiddenSize, #numberToChar))
@@ -166,6 +178,8 @@ end
 
 x, x_grad = rnn:getParameters() -- w,w_grad
 
+sample()
+
 while true do
 -- get weights and loss wrt weights from the model
     res, fs = optim.sgd(feval, x, sgd_params)
@@ -173,8 +187,11 @@ while true do
     if sgd_params.evalCounter%20==0 then
         print(string.format('error for minibatch %4.1f is %4.7f', sgd_params.evalCounter, fs[1] / rnn.opt.rho))
     end
-    if sgd_params.evalCounter%100==0 then
+    if sgd_params.evalCounter%20==0 then
         sample()
+    end
+    if sgd_params.evalCounter%40==0 then
+        collectgarbage()
     end
     if sgd_params.evalCounter%250==0 then
         torch.save(rnn.opt.modelName, rnn)

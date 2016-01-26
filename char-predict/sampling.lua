@@ -5,40 +5,56 @@ require 'optim'
 --local
 require 'readFile'
 
-inputFile = "../text/input.txt"
-hiddenSize = 150
-rho = 40
-batchSize = 20
-sgd_params = {
-   learningRate = 0.15,
-   learningRateDecay = 1e-4,
-   weightDecay = 0,
-   momentum = 0.6,
-   nesterov = true,
-   dampening = 0
-}
 
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text()
+cmd:text('Sample a simple LSTM network for next character prediction.')
+cmd:text()
+cmd:text('Options')
+cmd:option('-modelName','model.dat','name of the model to be saved or loaded.')
+cmd:text()
 
--- data loading and sequence creation
-text, charToNumber, numberToChar = readFile:processFile(inputFile)
-sequence = torch.Tensor(#text):zero()  --tensor representing chars as numbers, suitable for NLL criterion output
-sequenceCoded = torch.Tensor(#text, #numberToChar):zero() --tensor for network input, 1 from N coding
-for i = 1,#text do
-    sequence[i] = charToNumber[text:sub(i,i)]
-    sequenceCoded[i][sequence[i]] = 1
+-- parse input params
+opt = cmd:parse(arg)
+
+-- --try to load model
+if path.exists(opt.modelName) then
+    rnn = torch.load(opt.modelName)
+    print('Model '..opt.modelName..' loaded.')
+    print(rnn.opt)
+
+    --load inputFile
+    -- data loading and sequence creation
+    text, charToNumber, numberToChar = readFile:processFile(rnn.opt.inputFile)
+    sequence = torch.Tensor(#text):zero()  --tensor representing chars as numbers, suitable for NLL criterion output
+    sequenceCoded = torch.Tensor(#text, #numberToChar):zero() --tensor for network input, 1 from N coding
+    for i = 1,#text do
+        sequence[i] = charToNumber[text:sub(i,i)]
+        sequenceCoded[i][sequence[i]] = 1
+    end
+else
+    print("No file model.dat")
+    os.exit()
 end
 
 
 --sampling with current network
 function sample(samples)
 
-    samples = samples or 2*rho
+    samples = samples or 2*rnn.opt.rho
+
+    local samplingRnn = rnn:get(1):get(1):clone()
+    samplingRnn:evaluate() --no need to remember history
+    samplingRnn:remove(#samplingRnn.modules) --remove last layer LogSoftMax
+    samplingRnn:add(nn.SoftMax()) --add regular SoftMax
+    samplingRnn:forget() --!!!!!! IMPORTANT reset inner step count
 
     print('======Sampling==============================================')
 
     local prediction, sample, sampleCoded
-    local randomStart = math.ceil(torch.random(1,((#sequence)[1]-rho)))
-    for i = randomStart,randomStart+rho do
+    local randomStart = math.ceil(torch.random(1,((#sequence)[1]-rnn.opt.rho)))
+    for i = randomStart,randomStart+rnn.opt.rho do
         io.write(numberToChar[sequence[i]])
         prediction = samplingRnn:forward(sequenceCoded[i])
     end
@@ -57,20 +73,6 @@ function sample(samples)
     print('============================================================')
 end
 
-
-if path.exists('model.dat') then
-    rnn = torch.load('model.dat')
-    print('Model loaded.')
-    samplingRnn = rnn:get(1):get(1):clone()
-    samplingRnn:evaluate() --no need to remember history
-    samplingRnn:remove(#samplingRnn.modules) --remove last layer LogSoftMax
-    samplingRnn:add(nn.SoftMax()) --add regular SoftMax
-    samplingRnn:forget() --!!!!!! IMPORTANT reset inner step count
-
-    for i = 1,10 do
-        sample(200)
-    end
-
-else
-    print("No file model.dat")
+for i = 1,10 do
+    sample(400)
 end
