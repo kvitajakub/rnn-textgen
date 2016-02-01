@@ -1,7 +1,9 @@
 --usual
 require 'rnn'
 require 'optim'
-
+--uncommon
+require 'rnn'
+require 'dpnn'
 --local
 require 'readFile'
 
@@ -22,6 +24,7 @@ opt = cmd:parse(arg)
 if path.exists(opt.modelName) then
     rnn = torch.load(opt.modelName)
     print('Model '..opt.modelName..' loaded.')
+    print('Parameters overriden.')
     print(rnn.opt)
 
     --load inputFile
@@ -41,10 +44,9 @@ end
 
 --sampling with current network
 function sample(samples)
-
     samples = samples or 2*rnn.opt.rho
 
-    local samplingRnn = rnn:get(1):get(1):clone()
+    local samplingRnn = rnn:get(1):get(1):get(1):clone()
     samplingRnn:evaluate() --no need to remember history
     samplingRnn:remove(#samplingRnn.modules) --remove last layer LogSoftMax
     samplingRnn:add(nn.SoftMax()) --add regular SoftMax
@@ -54,10 +56,7 @@ function sample(samples)
 
     local prediction, sample, sampleCoded
     local randomStart = math.ceil(torch.random(1,((#sequence)[1]-rnn.opt.rho)))
-    for i = randomStart,randomStart+rnn.opt.rho do
-        io.write(numberToChar[sequence[i]])
-        prediction = samplingRnn:forward(sequenceCoded[i])
-    end
+    prediction = samplingRnn:forward(sequenceCoded[randomStart])
     io.write('__|||__')
 
     for i=1,samples do
@@ -73,6 +72,6 @@ function sample(samples)
     print('============================================================')
 end
 
-for i = 1,10 do
-    sample(400)
-end
+-- for i = 1,10 do
+    sample(1500)
+-- end
