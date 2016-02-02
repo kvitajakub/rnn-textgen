@@ -66,28 +66,23 @@ if path.exists(opt.modelName) then
     -- data loading and sequence creation
     text, charToNumber, numberToChar = readFile:processFile(rnn.opt.inputFile)
     sequence = torch.Tensor(#text):zero()  --tensor representing chars as numbers, suitable for NLL criterion output
-    sequenceCoded = torch.Tensor(#text, #numberToChar):zero() --tensor for network input, 1 from N coding
     for i = 1,#text do
         sequence[i] = charToNumber[text:sub(i,i)]
-        sequenceCoded[i][sequence[i]] = 1
     end
     sequence = sequence:cuda()
-    sequenceCoded = sequenceCoded:cuda()
 else
     --model not available, create new
     -- data loading and sequence creation
     text, charToNumber, numberToChar = readFile:processFile(opt.inputFile)
     sequence = torch.Tensor(#text):zero()  --tensor representing chars as numbers, suitable for NLL criterion output
-    sequenceCoded = torch.Tensor(#text, #numberToChar):zero() --tensor for network input, 1 from N coding
     for i = 1,#text do
         sequence[i] = charToNumber[text:sub(i,i)]
-        sequenceCoded[i][sequence[i]] = 1
     end
     sequence = sequence:cuda()
-    sequenceCoded = sequenceCoded:cuda()
     --network creation
     -- rnn for training with Sequencer and negative log likelihood criterion
     rnn = nn.Sequential()
+    rnn:add(nn.OneHot(#numberToChar))
     rnn:add(nn.LSTM(#numberToChar, opt.hiddenSize, opt.rho))
     for i=2,opt.layers do
         rnn:add(nn.LSTM(opt.hiddenSize, opt.hiddenSize, opt.rho))
@@ -120,7 +115,7 @@ function nextBatch()
     end
     offsets = torch.LongTensor(offsets)
     for i = 1,rnn.opt.rho do
-        table.insert(inputs,sequenceCoded:index(1,offsets))
+        table.insert(inputs,sequence:index(1,offsets))
         offsets:add(1)
         table.insert(targets,sequence:index(1,offsets))
     end
@@ -166,7 +161,7 @@ function sample(samples)
     local randomStart = math.ceil(torch.random(1,((#sequence)[1]-rnn.opt.rho)))
     for i = randomStart,randomStart+rnn.opt.rho do
         io.write(numberToChar[sequence[i]])
-        prediction = samplingRnn:forward(sequenceCoded[i])
+        prediction = samplingRnn:forward(torch.CudaTensor{sequence[i]})
     end
     io.write('__|||__')
     io.flush()
@@ -174,12 +169,10 @@ function sample(samples)
     for i=1,samples do
         prediction:exp()
         sample = torch.multinomial(prediction,1)
-        io.write(numberToChar[sample[1]])
 
-        sampleCoded = torch.CudaTensor(#numberToChar):zero()
-        sampleCoded[sample[1]] = 1
+        io.write(numberToChar[sample[1][1]])
 
-        prediction = samplingRnn:forward(sampleCoded)
+        prediction = samplingRnn:forward(sample[1])
     end
     io.write('\n')
     io.flush()
@@ -188,13 +181,12 @@ end
 
 x, x_grad = rnn:getParameters() -- w,w_grad
 
--- sample()
---
--- -- rnn:double()
+
+-- rnn:double()
 -- torch.save(rnn.opt.modelName, rnn)
 -- os.exit()
-adam_params.evalCounter=0
 sample()
+adam_params.evalCounter=0
 
 while true do
 -- get weights and loss wrt weights from the model
