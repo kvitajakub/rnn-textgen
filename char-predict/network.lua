@@ -159,10 +159,7 @@ function sample(samples)
 
     local samplingRnn = rnn:get(1):get(1):get(1):clone()
     samplingRnn:evaluate() --no need to remember history
-    samplingRnn:remove(#samplingRnn.modules) --remove last layer LogSoftMax
-    samplingRnn:add(nn.SoftMax():cuda()) --add regular SoftMax
     samplingRnn:forget() --!!!!!! IMPORTANT reset inner step count
-
     print('======Sampling==============================================')
 
     local prediction, sample, sampleCoded
@@ -175,6 +172,7 @@ function sample(samples)
     io.flush()
 
     for i=1,samples do
+        prediction:exp()
         sample = torch.multinomial(prediction,1)
         io.write(numberToChar[sample[1]])
 
@@ -196,7 +194,7 @@ x, x_grad = rnn:getParameters() -- w,w_grad
 -- torch.save(rnn.opt.modelName, rnn)
 -- os.exit()
 adam_params.evalCounter=0
-
+sample()
 
 while true do
 -- get weights and loss wrt weights from the model
