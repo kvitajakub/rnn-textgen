@@ -4,8 +4,8 @@ require 'optim'
 --uncommon
 require 'rnn'
 require 'dpnn'
--- require 'cutorch'
--- require 'cunn'
+require 'cutorch'
+require 'cunn'
 --local
 require 'readFile'
 
@@ -60,7 +60,7 @@ if path.exists(opt.modelName) then
     print('Parameters overriden.')
     print(rnn.opt)
 
-    -- rnn:cuda()
+    rnn:cuda()
 
     --load inputFile
     -- data loading and sequence creation
@@ -71,8 +71,8 @@ if path.exists(opt.modelName) then
         sequence[i] = charToNumber[text:sub(i,i)]
         sequenceCoded[i][sequence[i]] = 1
     end
-    -- sequence = sequence:cuda()
-    -- sequenceCoded = sequenceCoded:cuda()
+    sequence = sequence:cuda()
+    sequenceCoded = sequenceCoded:cuda()
 else
     --model not available, create new
     -- data loading and sequence creation
@@ -83,8 +83,8 @@ else
         sequence[i] = charToNumber[text:sub(i,i)]
         sequenceCoded[i][sequence[i]] = 1
     end
-    -- sequence = sequence:cuda()
-    -- sequenceCoded = sequenceCoded:cuda()
+    sequence = sequence:cuda()
+    sequenceCoded = sequenceCoded:cuda()
     --network creation
     -- rnn for training with Sequencer and negative log likelihood criterion
     rnn = nn.Sequential()
@@ -96,11 +96,11 @@ else
     rnn:add(nn.LogSoftMax())
     rnn = nn.Sequencer(rnn)
     rnn = nn.Serial(rnn)
-    rnn:heavySerial()
+    rnn:mediumSerial()
 
     --pridame opt do rnn aby se nam pak ulozilo
     rnn.opt = opt
-    -- rnn:cuda()
+    rnn:cuda()
 
     --INICIALIZATION
     -- A1: initialization often depends on each dataset.
@@ -109,7 +109,7 @@ end
 
 --create criterion
 criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
--- criterion:cuda()
+criterion:cuda()
 
 -- minibatch computation
 -- random subsequences from whole text
@@ -160,7 +160,7 @@ function sample(samples)
     local samplingRnn = rnn:get(1):get(1):get(1):clone()
     samplingRnn:evaluate() --no need to remember history
     samplingRnn:remove(#samplingRnn.modules) --remove last layer LogSoftMax
-    samplingRnn:add(nn.SoftMax()) --add regular SoftMax
+    samplingRnn:add(nn.SoftMax():cuda()) --add regular SoftMax
     samplingRnn:forget() --!!!!!! IMPORTANT reset inner step count
 
     print('======Sampling==============================================')
@@ -172,17 +172,19 @@ function sample(samples)
         prediction = samplingRnn:forward(sequenceCoded[i])
     end
     io.write('__|||__')
+    io.flush()
 
     for i=1,samples do
         sample = torch.multinomial(prediction,1)
         io.write(numberToChar[sample[1]])
 
-        sampleCoded = torch.Tensor(#numberToChar):zero()
+        sampleCoded = torch.CudaTensor(#numberToChar):zero()
         sampleCoded[sample[1]] = 1
 
         prediction = samplingRnn:forward(sampleCoded)
     end
     io.write('\n')
+    io.flush()
     print('============================================================')
 end
 
@@ -201,14 +203,14 @@ while true do
     res, fs = optim.adam(feval, x, adam_params)
     adam_params.evalCounter = adam_params.evalCounter + 1
 
-    if adam_params.evalCounter%20==0 then
+    if adam_params.evalCounter%25==0 then
         print(string.format('error for minibatch %4.1f is %4.7f', adam_params.evalCounter, fs[1] / rnn.opt.rho))
     end
-    if adam_params.evalCounter%20==0 then
-        sample()
-    end
-    if adam_params.evalCounter%40==0 then
+    if adam_params.evalCounter%50==0 then
         collectgarbage()
+    end
+    if adam_params.evalCounter%100==0 then
+        sample()
     end
     if adam_params.evalCounter%250==0 then
         torch.save(rnn.opt.modelName, rnn)
