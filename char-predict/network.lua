@@ -52,8 +52,8 @@ training_params = {
 function createLSTMNetwork(input_output, hidden, lstm_layers, rho)
     local rnn = nn.Sequential()
     rnn:add(nn.OneHot(input_output))
-    rnn:add(nn.Linear(input_output, hidden))
-    for i=1,lstm_layers do
+    rnn:add(nn.LSTM(input_output, hidden, rho))
+    for i=2,lstm_layers do
         rnn:add(nn.LSTM(hidden, hidden, rho))
     end
     rnn:add(nn.Linear(hidden, input_output))
@@ -96,11 +96,28 @@ function feval(x_new)
 	-- reset gradients (gradients are always accumulated, to accommodate batch methods)
     model.rnn:zeroGradParameters()
 
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--jak se dela inicializace stavu lstm bunek
+    -- local neco = torch.rand(model.opt.batchSize, model.opt.hiddenSize)
+    -- model.rnn:get(1):get(1):get(1):get(2).userPrevOutput = neco:cuda()
+    -- model.rnn:get(1):get(1):get(1):get(2).userPrevCell = neco:cuda()
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
     -- evaluate the loss function and its derivative wrt x, given mini batch
     local prediction = model.rnn:forward(inputs)
     local error = criterion:forward(prediction, targets)
     local gradOutputs = criterion:backward(prediction, targets)
     model.rnn:backward(inputs, gradOutputs)
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+    -- print(model.rnn:get(1):get(1):get(1):get(2).userGradPrevOutput)
+    -- print(model.rnn:get(1):get(1):get(1):get(2).userGradPrevCell)
+    -- os.exit()
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 	return error, x_grad
 end
