@@ -22,90 +22,57 @@ cmd:option('-layers',2,'Number of recurrent layers. (At least one.)')
 cmd:option('-rho',40,'How far past are we looking.')
 cmd:option('-batchSize',20,'Minibatch size.')
 cmd:option('-modelName','model.dat','name of the model to be saved or loaded.')
--- cmd:option('-gpu',0,'Use cpu(=0) or gpu(>0)')
 cmd:text()
 
 -- parse input params
 opt = cmd:parse(arg)
 
 
-sgd_params = {
-   learningRate = 0.05,
-   learningRateDecay = 1e-4,
-   weightDecay = 0.002,
-   momentum = 0.90,
-   nesterov = true,
-   dampening = 0
-}
-
--- sgd_params = {
---    learningRate = 0.02,
---    learningRateDecay = 0,
---    weightDecay = 0.001,
---    momentum = 0,
---    nesterov = false,
+-- training_params = {
+--     algorithm = optim.sgd,
+--     evaluation_counter = 0,
+--
+--    learningRate = 0.05,
+--    learningRateDecay = 1e-4,
+--    weightDecay = 0.002,
+--    momentum = 0.90,
+--    nesterov = true,
 --    dampening = 0
 -- }
 
-adam_params = {
+training_params = {
+    algorithm = optim.adam,
+    evaluation_counter = 0,
+
     learningRate=0.002
 }
 
-
--- --try to load model
-if path.exists(opt.modelName) then
-    rnn = torch.load(opt.modelName)
-    print('Model '..opt.modelName..' loaded.')
-    print('Parameters overriden.')
-    print(rnn.opt)
-
-    rnn:cuda()
-
-    --load inputFile
-    -- data loading and sequence creation
-    text, sequence, charToNumber, numberToChar = readFile:processFile(rnn.opt.inputFile)
-    sequence = sequence:cuda()
-else
-    --model not available, create new
-    -- data loading and sequence creation
-    text, sequence, charToNumber, numberToChar = readFile:processFile(opt.inputFile)
-    sequence = sequence:cuda()
-    --network creation
-    -- rnn for training with Sequencer and negative log likelihood criterion
-    rnn = nn.Sequential()
-    rnn:add(nn.OneHot(#numberToChar))
-    rnn:add(nn.LSTM(#numberToChar, opt.hiddenSize, opt.rho))
-    for i=2,opt.layers do
-        rnn:add(nn.LSTM(opt.hiddenSize, opt.hiddenSize, opt.rho))
+--create new lstm model, input is one number in tensor
+--not using global variables
+function createLSTMNetwork(input_output, hidden, lstm_layers, rho)
+    local rnn = nn.Sequential()
+    rnn:add(nn.OneHot(input_output))
+    rnn:add(nn.Linear(input_output, hidden))
+    for i=1,lstm_layers do
+        rnn:add(nn.LSTM(hidden, hidden, rho))
     end
-    rnn:add(nn.Linear(opt.hiddenSize, #numberToChar))
+    rnn:add(nn.Linear(hidden, input_output))
     rnn:add(nn.LogSoftMax())
     rnn = nn.Sequencer(rnn)
     rnn = nn.Serial(rnn)
-    rnn:mediumSerial()
-
-    --pridame opt do rnn aby se nam pak ulozilo
-    rnn.opt = opt
-    rnn:cuda()
-
-    --INICIALIZATION
-    -- A1: initialization often depends on each dataset.
-    --rnn:getParameters():uniform(-0.1, 0.1)
+    return rnn
 end
 
---create criterion
-criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
-criterion:cuda()
 
 -- minibatch computation
 -- random subsequences from whole text
 function nextBatch()
     local offsets, inputs, targets = {}, {}, {}
-    for i = 1,rnn.opt.batchSize do
-        table.insert(offsets,math.ceil(torch.random(1,((#sequence)[1]-rnn.opt.rho))))
+    for i = 1,model.opt.batchSize do
+        table.insert(offsets,math.ceil(torch.random(1,((#sequence)[1]-model.opt.rho))))
     end
     offsets = torch.LongTensor(offsets)
-    for i = 1,rnn.opt.rho do
+    for i = 1,model.opt.rho do
         table.insert(inputs,sequence:index(1,offsets))
         offsets:add(1)
         table.insert(targets,sequence:index(1,offsets))
@@ -127,13 +94,13 @@ function feval(x_new)
 	local inputs, targets = nextBatch()
 
 	-- reset gradients (gradients are always accumulated, to accommodate batch methods)
-    rnn:zeroGradParameters()
+    model.rnn:zeroGradParameters()
 
     -- evaluate the loss function and its derivative wrt x, given mini batch
-    local prediction = rnn:forward(inputs)
+    local prediction = model.rnn:forward(inputs)
     local error = criterion:forward(prediction, targets)
     local gradOutputs = criterion:backward(prediction, targets)
-    rnn:backward(inputs, gradOutputs)
+    model.rnn:backward(inputs, gradOutputs)
 
 	return error, x_grad
 end
@@ -141,60 +108,113 @@ end
 --sampling with current network
 function sample(samples)
 
-    samples = samples or 2*rnn.opt.rho
+    samples = samples or 2*model.opt.rho
 
-    local samplingRnn = rnn:get(1):get(1):get(1):clone()
+    local samplingRnn = model.rnn:get(1):get(1):get(1)
     samplingRnn:evaluate() --no need to remember history
     samplingRnn:forget() --!!!!!! IMPORTANT reset inner step count
     print('======Sampling==============================================')
 
-    local prediction, sample, sampleCoded
-    local randomStart = math.ceil(torch.random(1,((#sequence)[1]-rnn.opt.rho)))
-    for i = randomStart,randomStart+rnn.opt.rho do
-        io.write(numberToChar[sequence[i]])
-        prediction = samplingRnn:forward(torch.CudaTensor{sequence[i]})
-    end
-    io.write('__|||__')
-    io.flush()
+    local prediction, sample
+
+    -- -- generation with initialization by rho characters
+    -- local randomStart = math.ceil(torch.random(1,((#sequence)[1]-model.opt.rho)))
+    -- for i = randomStart,randomStart+model.opt.rho do
+    --     io.write(model.numberToChar[sequence[i]])
+    --     prediction = samplingRnn:forward(torch.CudaTensor{sequence[i]})
+    -- end
+    -- io.write('__|||__')
+    -- io.flush()
+
+    -- -- generation with initialization by random character
+    -- local randomCharNumber = math.ceil(torch.random(1, #model.numberToChar))
+    -- -- generation with initialization by specific character (space)
+    local randomCharNumber = model.charToNumber[' ']
+    prediction = samplingRnn:forward(torch.CudaTensor{randomCharNumber})
 
     for i=1,samples do
         prediction:exp()
         sample = torch.multinomial(prediction,1)
 
-        io.write(numberToChar[sample[1][1]])
+        io.write(model.numberToChar[sample[1][1]])
 
         prediction = samplingRnn:forward(sample[1])
     end
     io.write('\n')
     io.flush()
     print('============================================================')
+
+    samplingRnn:training()--!!!!!! IMPORTANT switch back to remembering state
+
 end
 
-x, x_grad = rnn:getParameters() -- w,w_grad
+--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==
+----==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--
+
+-- --try to load model
+if path.exists(opt.modelName) then
+    model = torch.load(opt.modelName)
+    print('Model '..opt.modelName..' loaded.')
+    print('Parameters overriden.')
+    print(model.opt)
+
+    model.rnn:cuda()
+
+    --load inputFile
+    -- data loading and sequence creation
+    text, sequence, charToNumber, numberToChar = readFile:processFile(model.opt.inputFile)
+    sequence = sequence:cuda()
+else
+    --model not available, create new
+    -- data loading and sequence creation
+
+    text, sequence, charToNumber, numberToChar = readFile:processFile(opt.inputFile)
+    sequence = sequence:cuda()
+
+    --network creation
+    local rnn = createLSTMNetwork(#numberToChar, opt.hiddenSize, opt.layers, opt.rho)
+
+    rnn:mediumSerial()
+    rnn:cuda()
+
+    model = {}
+    model.rnn = rnn
+    model.opt = opt
+    model.training_params = training_params
+
+    model.charToNumber = charToNumber
+    model.numberToChar = numberToChar
+
+    --INICIALIZATION
+    -- A1: initialization often depends on each dataset.
+    --rnn:getParameters():uniform(-0.1, 0.1)
+end
+
+--create criterion
+criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
+criterion:cuda()
 
 
--- rnn:double()
--- torch.save(rnn.opt.modelName, rnn)
--- os.exit()
+x, x_grad = model.rnn:getParameters() -- w,w_grad
+
 sample()
-adam_params.evalCounter=0
 
 while true do
 -- get weights and loss wrt weights from the model
-    res, fs = optim.adam(feval, x, adam_params)
-    adam_params.evalCounter = adam_params.evalCounter + 1
+    res, fs = model.training_params.algorithm(feval, x, model.training_params)
+    model.training_params.evaluation_counter = model.training_params.evaluation_counter + 1
 
-    if adam_params.evalCounter%25==0 then
-        print(string.format('error for minibatch %4.1f is %4.7f', adam_params.evalCounter, fs[1] / rnn.opt.rho))
+    if model.training_params.evaluation_counter%25==0 then
+        print(string.format('error for minibatch %4.1f is %4.7f', model.training_params.evaluation_counter, fs[1] / model.opt.rho))
     end
-    if adam_params.evalCounter%50==0 then
+    if model.training_params.evaluation_counter%50==0 then
         collectgarbage()
     end
-    if adam_params.evalCounter%100==0 then
+    if model.training_params.evaluation_counter%100==0 then
         sample()
     end
-    if adam_params.evalCounter%250==0 then
-        torch.save(rnn.opt.modelName, rnn)
-        print("Model saved to "..rnn.opt.modelName)
+    if model.training_params.evaluation_counter%1250==0 then
+        torch.save(model.opt.modelName, model)
+        print("Model saved to "..model.opt.modelName)
     end
 end
