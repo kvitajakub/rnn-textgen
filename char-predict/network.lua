@@ -52,7 +52,6 @@ adam_params = {
 }
 
 
-
 -- --try to load model
 if path.exists(opt.modelName) then
     rnn = torch.load(opt.modelName)
@@ -64,20 +63,12 @@ if path.exists(opt.modelName) then
 
     --load inputFile
     -- data loading and sequence creation
-    text, charToNumber, numberToChar = readFile:processFile(rnn.opt.inputFile)
-    sequence = torch.Tensor(#text):zero()  --tensor representing chars as numbers, suitable for NLL criterion output
-    for i = 1,#text do
-        sequence[i] = charToNumber[text:sub(i,i)]
-    end
+    text, sequence, charToNumber, numberToChar = readFile:processFile(rnn.opt.inputFile)
     sequence = sequence:cuda()
 else
     --model not available, create new
     -- data loading and sequence creation
-    text, charToNumber, numberToChar = readFile:processFile(opt.inputFile)
-    sequence = torch.Tensor(#text):zero()  --tensor representing chars as numbers, suitable for NLL criterion output
-    for i = 1,#text do
-        sequence[i] = charToNumber[text:sub(i,i)]
-    end
+    text, sequence, charToNumber, numberToChar = readFile:processFile(opt.inputFile)
     sequence = sequence:cuda()
     --network creation
     -- rnn for training with Sequencer and negative log likelihood criterion

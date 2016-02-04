@@ -20,9 +20,14 @@ function readFile:processFile(filename)
         charToNumber[numberToChar[#numberToChar]] = #numberToChar
     end
 
-    return text, charToNumber, numberToChar
+    sequence = torch.Tensor(#text):zero()  --tensor representing chars as numbers, suitable for NLL criterion output
+    for i = 1,#text do
+        sequence[i] = charToNumber[text:sub(i,i)]
+    end
+
+    return text, sequence, charToNumber, numberToChar
 end
 
--- text,charToNumber,numberToChar =  readFile:processFile("../text/input.txt")
+-- text, sequence, charToNumber,numberToChar =  readFile:processFile("../text/input.txt")
 
 -- print(charToNumber[text:sub(25,25)])
