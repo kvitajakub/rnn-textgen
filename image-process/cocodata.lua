@@ -11,6 +11,29 @@ function loadCaptions(captionFileName)
     return js
 end
 
+function generateCodes(captions)
+
+    local text = ""
+    for i=1,#captions['annotations'] do
+        text = text .. captions['annotations'][i]['caption']
+    end
+
+    local histogram = {}
+    for i =1,#text do
+        histogram[text:sub(i,i)] = (histogram[text:sub(i,i)] or 0)+1
+    end
+
+    local numberToChar = {}
+    local charToNumber = {}
+
+    for k,_ in pairs(histogram) do
+        table.insert(numberToChar,k)
+        charToNumber[numberToChar[#numberToChar]] = #numberToChar
+    end
+
+    return charToNumber, numberToChar
+end
+
 
 function imageSample(captions, N, imageDirectory)
 
