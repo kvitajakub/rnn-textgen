@@ -17,8 +17,8 @@ cmd:text('Training a simple network for next character prediction.')
 cmd:text()
 cmd:text('Options')
 cmd:option('-inputFile',"../text/shakespeare.txt",'File with the input data.')
-cmd:option('-hiddenSize',150,'Number of units in the hidden layer.')
-cmd:option('-layers',2,'Number of recurrent layers. (At least one.)')
+cmd:option('-hiddenSize',300,'Number of units in the hidden layer.')
+cmd:option('-layers',4,'Number of recurrent layers. (At least one.)')
 cmd:option('-rho',40,'How far past are we looking.')
 cmd:option('-batchSize',20,'Minibatch size.')
 cmd:option('-modelName','model.dat','name of the model to be saved or loaded.')
@@ -49,11 +49,11 @@ training_params = {
 
 --create new lstm model, input is one number in tensor
 --not using global variables
-function createLSTMNetwork(input_output, hidden, lstm_layers, rho)
+function createLSTMNetwork(input_output, hidden, recurrent_layers, rho)
     local rnn = nn.Sequential()
     rnn:add(nn.OneHot(input_output))
     rnn:add(nn.LSTM(input_output, hidden, rho))
-    for i=2,lstm_layers do
+    for i=2,recurrent_layers do
         rnn:add(nn.LSTM(hidden, hidden, rho))
     end
     rnn:add(nn.Linear(hidden, input_output))

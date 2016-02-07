@@ -1,9 +1,11 @@
 --usual
-require 'rnn'
+require 'torch'
 require 'optim'
 --uncommon
 require 'rnn'
 require 'dpnn'
+require 'cutorch'
+require 'cunn'
 --local
 require 'readFile'
 
@@ -22,56 +24,60 @@ opt = cmd:parse(arg)
 
 -- --try to load model
 if path.exists(opt.modelName) then
-    rnn = torch.load(opt.modelName)
+    model = torch.load(opt.modelName)
     print('Model '..opt.modelName..' loaded.')
     print('Parameters overriden.')
-    print(rnn.opt)
+    print(model.opt)
+
+    model.rnn:cuda()
 
     --load inputFile
     -- data loading and sequence creation
-    text, charToNumber, numberToChar = readFile:processFile(rnn.opt.inputFile)
-    sequence = torch.Tensor(#text):zero()  --tensor representing chars as numbers, suitable for NLL criterion output
-    sequenceCoded = torch.Tensor(#text, #numberToChar):zero() --tensor for network input, 1 from N coding
-    for i = 1,#text do
-        sequence[i] = charToNumber[text:sub(i,i)]
-        sequenceCoded[i][sequence[i]] = 1
-    end
+    text, sequence, charToNumber, numberToChar = readFile:processFile(model.opt.inputFile)
+    sequence = sequence:cuda()
 else
-    print("No file model.dat")
+    print("No file "..opt.modelName)
     os.exit()
 end
 
 
 --sampling with current network
 function sample(samples)
-    samples = samples or 2*rnn.opt.rho
+    samples = samples or 2*model.opt.rho
 
-    local samplingRnn = rnn:get(1):get(1):get(1):clone()
+    local samplingRnn = model.rnn:get(1):get(1):get(1)
     samplingRnn:evaluate() --no need to remember history
-    samplingRnn:remove(#samplingRnn.modules) --remove last layer LogSoftMax
-    samplingRnn:add(nn.SoftMax()) --add regular SoftMax
     samplingRnn:forget() --!!!!!! IMPORTANT reset inner step count
-
     print('======Sampling==============================================')
 
-    local prediction, sample, sampleCoded
-    local randomStart = math.ceil(torch.random(1,((#sequence)[1]-rnn.opt.rho)))
-    prediction = samplingRnn:forward(sequenceCoded[randomStart])
-    io.write('__|||__')
+    local prediction, sample
+
+    -- -- generation with initialization by rho characters
+    -- local randomStart = math.ceil(torch.random(1,((#sequence)[1]-model.opt.rho)))
+    -- for i = randomStart,randomStart+model.opt.rho do
+    --     io.write(model.numberToChar[sequence[i]])
+    --     prediction = samplingRnn:forward(torch.CudaTensor{sequence[i]})
+    -- end
+    -- io.write('__|||__')
+    -- io.flush()
+
+    -- -- generation with initialization by random character
+    -- local randomCharNumber = math.ceil(torch.random(1, #model.numberToChar))
+    -- -- generation with initialization by specific character (space)
+    local randomCharNumber = model.charToNumber[' ']
+    prediction = samplingRnn:forward(torch.CudaTensor{randomCharNumber})
 
     for i=1,samples do
+        prediction:exp()
         sample = torch.multinomial(prediction,1)
-        io.write(numberToChar[sample[1]])
 
-        sampleCoded = torch.Tensor(#numberToChar):zero()
-        sampleCoded[sample[1]] = 1
+        io.write(model.numberToChar[sample[1][1]])
 
-        prediction = samplingRnn:forward(sampleCoded)
+        prediction = samplingRnn:forward(sample[1])
     end
     io.write('\n')
+    io.flush()
     print('============================================================')
 end
 
--- for i = 1,10 do
-    sample(1500)
--- end
+sample(1500)
