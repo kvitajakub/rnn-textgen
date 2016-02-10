@@ -1,4 +1,5 @@
 require 'torch'
+require 'image'
 
 function loadCaptions(captionFileName)
 
@@ -11,11 +12,11 @@ function loadCaptions(captionFileName)
     return js
 end
 
-function generateCodes(captions)
+function generateCodes(js)
 
     local text = ""
-    for i=1,#captions['annotations'] do
-        text = text .. captions['annotations'][i]['caption']
+    for i=1,#js['annotations'] do
+        text = text .. js['annotations'][i]['caption']
     end
 
     local histogram = {}
@@ -26,10 +27,16 @@ function generateCodes(captions)
     local numberToChar = {}
     local charToNumber = {}
 
+    table.insert(numberToChar,"START")
+    charToNumber[numberToChar[#numberToChar]] = #numberToChar
+
     for k,_ in pairs(histogram) do
         table.insert(numberToChar,k)
         charToNumber[numberToChar[#numberToChar]] = #numberToChar
     end
+
+    table.insert(numberToChar,"END")
+    charToNumber[numberToChar[#numberToChar]] = #numberToChar
 
     return charToNumber, numberToChar
 end
@@ -40,7 +47,7 @@ function imageSample(captions, N, imageDirectory)
     imageDirectory = imageDirectory or ""
     N = N or 1
 
-    local imagesUrl = {}
+    local imagesPath = {}
     local imagesCaption = {}
 
     if not captions then
@@ -65,14 +72,80 @@ function imageSample(captions, N, imageDirectory)
 
         local imagePath = imageDirectory .. imageName
 
-        table.insert(imagesUrl, imagePath)
+        table.insert(imagesPath, imagePath)
         table.insert(imagesCaption, captionText)
 
     end
 
-    return imagesUrl, imagesCaption
+    return imagesPath, imagesCaption
 end
 
 
-js = loadCaptions('../../../Diplomka-data/coco/annotations/captions_train2014_small.json')
-images, captions = imageSample(js,3,"../../../Diplomka-data/coco/train2014_small/")
+function loadAndPrepare(imageFile, outputSize)
+    outputSize = outputSize or 500
+
+    if type(imageFile) == "table" then
+
+        local images = {}
+
+        for k,v in ipairs(imageFile) do
+            table.insert(images, loadAndPrepare(v,outputSize))
+        end
+
+        return images
+
+    else
+
+        local im = image.load(imageFile,3) -- nChannel x height x width
+        local s = im:size()
+
+        if s[2] > s[3] then
+            --height > width
+            local cropNumber = (s[2]-s[3])/2
+            im = image.crop(im,0,cropNumber,s[3],s[2]-cropNumber) --height and width flipped
+        elseif s[2] < s[3] then
+            --height < width
+            local cropNumber = (s[3]-s[2])/2
+            im = image.crop(im,cropNumber,0,s[3]-cropNumber,s[2]) --height and width flipped
+        end
+
+        im = image.scale(im,outputSize)
+
+        return im
+
+    end
+
+end
+
+function encodeCaption(caption, charToNumber)
+
+    if type(caption)=="table" then
+
+        local sequences = {}
+
+        for k,v in ipairs(caption) do
+            table.insert(sequences, encodeCaption(v,charToNumber))
+        end
+
+        return sequences
+    else
+
+        local sequence = torch.Tensor(caption:len()+2):zero()
+
+        sequence[1] = charToNumber["START"]
+        for i = 1,caption:len() do
+            sequence[i+1] = charToNumber[caption:sub(i,i)]
+        end
+        sequence[caption:len()+2] = charToNumber["END"]
+
+        return sequence
+    end
+
+end
+
+--
+-- js = loadCaptions('../../../Diplomka-data/coco/annotations/captions_train2014_small.json')
+-- charToNumber, numberToChar = generateCodes(js)
+-- imageFiles, captions = imageSample(js,5,"../../../Diplomka-data/coco/train2014_small/")
+-- sequences = encodeCaption(captions,charToNumber)
+-- images = loadAndPrepare(imageFiles)
