@@ -23,7 +23,7 @@ cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/coco/captions_trai
 cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/coco/train2014/",'Directory with the images with names according to the caption file.')
 cmd:text()
 cmd:option('-recurLayers',4,'Number of recurrent layers. (At least one.)')
-cmd:option('-batchSize',1,'Minibatch size.')
+cmd:option('-batchSize',10,'Minibatch size.')
 cmd:option('-modelName','model.dat','File name of the saved or loaded model and training data.')
 cmd:text()
 
@@ -74,11 +74,6 @@ function nextBatch()
 end
 
 
-
--- In the following code, we define a closure, feval, which computes
--- the value of the loss function at a given point x, and the gradient of
--- that function with respect to x. weigths is the vector of trainable weights,
--- it extracts a mini_batch via the nextBatch method
 function feval(x_new)
 
     -- copy the weight if are changed, not usually used
@@ -101,7 +96,7 @@ function feval(x_new)
         rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, cnn.output)
 
         local prediction = rnn:forward(inputs[i])
-        error = error + criterion:forward(prediction, targets[i])
+        error = error + criterion:forward(prediction, targets[i])/#(targets[i])
         local gradOutputs = criterion:backward(prediction, targets[i])
         rnn:backward(inputs[i], gradOutputs)
 
@@ -152,7 +147,7 @@ while true do
     training_params.evaluation_counter = training_params.evaluation_counter + 1
 
     if training_params.evaluation_counter%2==0 then
-        print(string.format('error for minibatch %4.1f is %4.7f', training_params.evaluation_counter, fs[1]))
+        print(string.format('error for minibatch %4.1f is %4.7f', training_params.evaluation_counter, fs[1]/opt.batchSize))
     end
     if training_params.evaluation_counter%5==0 then
         collectgarbage()
