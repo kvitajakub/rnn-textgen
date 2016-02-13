@@ -110,6 +110,19 @@ function feval(x_new)
 	return error, x_grad
 end
 
+
+function tryToGenerate(N)
+    N = N or 3
+    local imageFiles, captions = imageSample(js, N, model.opt.imageDirectory)
+    local images = loadAndPrepare(imageFiles)
+
+    model:double()
+    local generatedCaptions = sample(model, images)
+    model:training()
+    model:cuda()
+    printOutput(imageFiles, generatedCaptions)
+end
+
 --=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 ---=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 --=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -154,6 +167,7 @@ criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 criterion:cuda()
 
 
+model:training()
 x, x_grad = model:getParameters() -- w,w_grad
 
 
@@ -165,16 +179,24 @@ while true do
     if model.training_params.evaluation_counter%5==0 then
         print(string.format('Error for minibatch %4.1f is %4.7f.', model.training_params.evaluation_counter, fs[1]/model.opt.batchSize))
     end
+
+
     if model.training_params.evaluation_counter%20==0 then
         collectgarbage()
     end
-    -- if model.training_params.evaluation_counter%100==0 then
-    --     sample()
-    -- end
+
+
+    if model.training_params.evaluation_counter%25==0 then
+        tryToGenerate()
+    end
+
+
     if model.training_params.evaluation_counter%250==0 then
         model:double()
         torch.save(model.opt.modelName, model)
         model:cuda()
         print(" >>> Model and data saved to "..model.opt.modelName..".")
     end
+
+
 end
