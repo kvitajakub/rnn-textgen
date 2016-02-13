@@ -13,5 +13,10 @@ function RNN.createRNN(input_output, recurrent_layers)
     rnn:add(nn.Linear(512, input_output))
     rnn:add(nn.LogSoftMax())
     rnn = nn.Sequencer(rnn)
-    return rnn, rnn:get(1):get(1):get(2)  --return network and first recurrent layer
+
+    --INICIALIZATION
+    -- A1: initialization often depends on each dataset.
+    --rnn:getParameters():uniform(-0.1, 0.1)
+
+    return rnn
 end

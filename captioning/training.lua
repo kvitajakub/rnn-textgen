@@ -10,6 +10,7 @@ require 'cunn'
 require 'cocodata'
 require 'CNN'
 require 'RNN'
+require 'sample'
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -44,7 +45,7 @@ function nextBatch()
     local inputs, targets = {}, {}
 
     --get samples from caption file
-    local imageFiles, captions = imageSample(js, opt.batchSize, opt.imageDirectory)
+    local imageFiles, captions = imageSample(js, model.opt.batchSize, model.opt.imageDirectory)
 
     --prepare images
     local images = loadAndPrepare(imageFiles)
@@ -53,7 +54,7 @@ function nextBatch()
     end
 
     --encode captions
-    local sequences = encodeCaption(captions,charToNumber)
+    local sequences = encodeCaption(captions, model.charToNumber)
 
     for k,v in ipairs(sequences) do
         local sequencerInputTable = {}
@@ -82,8 +83,10 @@ function feval(x_new)
     end
 
 	local images, inputs, targets = nextBatch()
-
     local error = 0
+    local cnn = model:get(1):get(1)
+    local rnn = model:get(1):get(2)
+    local rnnLayer = model:get(1):get(2):get(1):get(1):get(2)
 
 	-- reset gradients (gradients are always accumulated, to accommodate batch methods)
     cnn:zeroGradParameters()
@@ -107,28 +110,43 @@ function feval(x_new)
 	return error, x_grad
 end
 
+--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+---=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+---=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+if path.exists(opt.modelName) then
+    --load saved model
+    model = torch.load(opt.modelName)
+    model:cuda()
 
+    js = loadCaptions(model.opt.captionFile)
 
+    print(' >>> Model '..opt.modelName..' loaded.')
+    print(' >>> Parameters overriden.')
+    print(model.opt)
+else
+    --create new model
+    js = loadCaptions(opt.captionFile)
+    local charToNumber, numberToChar = generateCodes(js)
 
+    local cnn = CNN.createCNN()
+    local rnn = RNN.createRNN(#numberToChar, opt.recurLayers)
 
+    model = nn.Container()
+    model:add(cnn)
+    model:add(rnn)
 
+    model = nn.Serial(model)
+    model:mediumSerial()
 
+    model:cuda()
 
-js = loadCaptions(opt.captionFile)
-charToNumber, numberToChar = generateCodes(js)
-
-rnn, rnnLayer = RNN.createRNN(#numberToChar, 5)
-cnn = CNN.createCNN()
-
-model = nn.Container()
-model:add(cnn)
-model:add(rnn)
-
-model = nn.Serial(model)
-model:mediumSerial()
-
-model:cuda()
+    model.opt = opt
+    model.training_params = training_params
+    model.charToNumber = charToNumber
+    model.numberToChar = numberToChar
+end
 
 
 --create criterion
@@ -139,24 +157,24 @@ criterion:cuda()
 x, x_grad = model:getParameters() -- w,w_grad
 
 
-
-
 while true do
 -- get weights and loss wrt weights from the model
-    res, fs = training_params.algorithm(feval, x, training_params)
-    training_params.evaluation_counter = training_params.evaluation_counter + 1
+    res, fs = model.training_params.algorithm(feval, x, model.training_params)
+    model.training_params.evaluation_counter = model.training_params.evaluation_counter + 1
 
-    if training_params.evaluation_counter%2==0 then
-        print(string.format('error for minibatch %4.1f is %4.7f', training_params.evaluation_counter, fs[1]/opt.batchSize))
+    if model.training_params.evaluation_counter%5==0 then
+        print(string.format('Error for minibatch %4.1f is %4.7f.', model.training_params.evaluation_counter, fs[1]/model.opt.batchSize))
     end
-    if training_params.evaluation_counter%5==0 then
+    if model.training_params.evaluation_counter%20==0 then
         collectgarbage()
     end
-    -- if training_params.evaluation_counter%100==0 then
+    -- if model.training_params.evaluation_counter%100==0 then
     --     sample()
     -- end
-    -- if training_params.evaluation_counter%1250==0 then
-    --     torch.save(model.opt.modelName, model)
-    --     print("Model saved to "..model.opt.modelName)
-    -- end
+    if model.training_params.evaluation_counter%250==0 then
+        model:double()
+        torch.save(model.opt.modelName, model)
+        model:cuda()
+        print(" >>> Model and data saved to "..model.opt.modelName..".")
+    end
 end
