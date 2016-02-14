@@ -25,6 +25,9 @@ cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/coco/train2014/
 cmd:text()
 cmd:option('-recurLayers',4,'Number of recurrent layers. (At least one.)')
 cmd:option('-batchSize',10,'Minibatch size.')
+cmd:option('-printError',4,'Print error once per N minibatches.')
+cmd:option('-sample',25,'Try to sample once per N minibatches.')
+cmd:option('-saveModel',100,'Save model once per N minibatches.')
 cmd:option('-modelName','model.dat','File name of the saved or loaded model and training data.')
 cmd:text()
 
@@ -176,7 +179,7 @@ while true do
     res, fs = model.training_params.algorithm(feval, x, model.training_params)
     model.training_params.evaluation_counter = model.training_params.evaluation_counter + 1
 
-    if model.training_params.evaluation_counter%5==0 then
+    if model.training_params.evaluation_counter%model.opt.printError==0 then
         print(string.format('Error for minibatch %4.1f is %4.7f.', model.training_params.evaluation_counter, fs[1]/model.opt.batchSize))
     end
 
@@ -186,12 +189,12 @@ while true do
     end
 
 
-    if model.training_params.evaluation_counter%25==0 then
+    if model.training_params.evaluation_counter%model.opt.sample==0 then
         tryToGenerate()
     end
 
 
-    if model.training_params.evaluation_counter%250==0 then
+    if model.training_params.evaluation_counter%model.opt.saveModel==0 then
         model:double()
         torch.save(model.opt.modelName, model)
         model:cuda()
