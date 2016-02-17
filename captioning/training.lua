@@ -23,7 +23,8 @@ cmd:text('Options')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/coco/captions_train2014_small.json",'JSON file with the input data (captions, image names).')
 cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/coco/train2014/",'Directory with the images with names according to the caption file.')
 cmd:text()
-cmd:option('-recurLayers',4,'Number of recurrent layers. (At least one.)')
+cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/cnn/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
+cmd:option('-recurLayers',5,'Number of recurrent layers. (At least one.)')
 cmd:option('-batchSize',10,'Minibatch size.')
 cmd:option('-printError',4,'Print error once per N minibatches.')
 cmd:option('-sample',25,'Try to sample once per N minibatches.')
@@ -51,7 +52,7 @@ function nextBatch()
     local imageFiles, captions = imageSample(js, model.opt.batchSize, model.opt.imageDirectory)
 
     --prepare images
-    local images = loadAndPrepare(imageFiles)
+    local images = loadAndPrepare(imageFiles, 224)
     for i=1,#images do
         images[i] = images[i]:cuda()
     end
@@ -117,7 +118,7 @@ end
 function tryToGenerate(N)
     N = N or 3
     local imageFiles, captions = imageSample(js, N, model.opt.imageDirectory)
-    local images = loadAndPrepare(imageFiles)
+    local images = loadAndPrepare(imageFiles, 224)
 
     model:double()
     local generatedCaptions = sample(model, images)
@@ -146,8 +147,14 @@ else
     js = loadCaptions(opt.captionFile)
     local charToNumber, numberToChar = generateCodes(js)
 
-    local cnn = CNN.createCNN()
-    local rnn = RNN.createRNN(#numberToChar, opt.recurLayers)
+    local cnn
+    if opt.pretrainedCNN == "" then
+        cnn = CNN.createCNN()
+    else
+        cnn = torch.load(opt.pretrainedCNN)
+    end
+
+    local rnn = RNN.createRNN(#numberToChar, opt.recurLayers, 1000)
 
     model = nn.Container()
     model:add(cnn)

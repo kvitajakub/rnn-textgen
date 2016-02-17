@@ -5,25 +5,39 @@ function CNN.createCNN()
 
     local cnn = nn.Sequential()
 
-    cnn:add(nn.SpatialConvolution(3, 32, 5, 5, 1, 1, 2, 2))
-    cnn:add(nn.ReLU())
-    cnn:add(nn.SpatialMaxPooling(5, 5, 5, 5))
+    -- NiN model
+    -- https://gist.github.com/mavenlin/d802a5849de39225bcc6
+    cnn:add(nn.SpatialConvolution(3, 96, 11, 11, 4, 4, 0, 0))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialConvolution(96, 96, 1, 1, 1, 1, 0, 0))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialConvolution(96, 96, 1, 1, 1, 1, 0, 0))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialMaxPooling(3, 3, 2, 2, 0, 0):ceil())
+    cnn:add(nn.SpatialConvolution(96, 256, 5, 5, 1, 1, 2, 2))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialConvolution(256, 256, 1, 1, 1, 1, 0, 0))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialConvolution(256, 256, 1, 1, 1, 1, 0, 0))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialMaxPooling(3, 3, 2, 2, 0, 0):ceil())
+    cnn:add(nn.SpatialConvolution(256, 384, 3, 3, 1, 1, 1, 1))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialConvolution(384, 384, 1, 1, 1, 1, 0, 0))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialConvolution(384, 384, 1, 1, 1, 1, 0, 0))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialMaxPooling(3, 3, 2, 2, 0, 0):ceil())
+    cnn:add(nn.Dropout(0.500000))
+    cnn:add(nn.SpatialConvolution(384, 1024, 3, 3, 1, 1, 1, 1))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialConvolution(1024, 1024, 1, 1, 1, 1, 0, 0))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialConvolution(1024, 1000, 1, 1, 1, 1, 0, 0))
+    cnn:add(nn.ReLU(true))
+    cnn:add(nn.SpatialAveragePooling(6, 6, 1, 1):ceil())
 
-    cnn:add(nn.SpatialZeroPadding(1, 0, 1, 0))  --256*32*32
-
-    cnn:add(nn.SpatialConvolution(32, 32, 5, 5, 1, 1, 2, 2))
-    cnn:add(nn.ReLU())
-    cnn:add(nn.SpatialMaxPooling(5, 5, 5, 5))
-
-    -- cnn:add(nn.SpatialConvolution(512, 256, 5, 5, 1, 1, 2, 2))
-    -- cnn:add(nn.ReLU())
-    cnn:add(nn.SpatialMaxPooling(5, 5, 5, 5))
-    --
-    -- cnn:add(nn.SpatialConvolution(256, 128, 5, 5, 1, 1, 2, 2))
-    -- cnn:add(nn.ReLU())
-    -- cnn:add(nn.SpatialMaxPooling(4, 4, 4, 4))
-
-    cnn:add(nn.Reshape(512))
+    model:add(nn.Reshape(1000))
 
     return cnn
 end
