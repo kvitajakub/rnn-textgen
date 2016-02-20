@@ -33,7 +33,7 @@ function sample(model, images, input_char)
         sample = torch.multinomial(prediction,1)
         char = model.numberToChar[sample[1][1]]
 
-        while char ~= "END" or safeCounter>200 do
+        while char ~= "END" and safeCounter<200 do
 
             description = description .. char
             prediction = rnnNoseq:forward(sample[1])
