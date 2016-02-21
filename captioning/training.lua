@@ -24,12 +24,12 @@ cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/coco/captions_trai
 cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/coco/train2014/",'Directory with the images with names according to the caption file.')
 cmd:text()
 cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/cnn/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
-cmd:option('-recurLayers',5,'Number of recurrent layers. (At least one.)')
+cmd:option('-pretrainedRNN',"", 'Path to a pretrained RNN.')
 cmd:option('-batchSize',10,'Minibatch size.')
 cmd:option('-printError',4,'Print error once per N minibatches.')
 cmd:option('-sample',25,'Try to sample once per N minibatches.')
 cmd:option('-saveModel',100,'Save model once per N minibatches.')
-cmd:option('-modelName','model.dat','File name of the saved or loaded model and training data.')
+cmd:option('-modelName','model.torch','File name of the saved or loaded model and training data.')
 cmd:text()
 
 -- parse input params
@@ -109,7 +109,7 @@ function feval(x_new)
 
         cnn:backward(images[i],rnnLayer.gradPrevOutput)
     end
-
+    error = error / #images
 
 	return error, x_grad
 end
@@ -154,11 +154,17 @@ else
         cnn = torch.load(opt.pretrainedCNN)
     end
 
-    local rnn = RNN.createRNN(#numberToChar, opt.recurLayers, 1000)
+    local rnn
+    if opt.pretrainedRNN == "" then
+        rnn = RNN.createRNN(#numberToChar, 10, 1000)
+    else
+        local model = torch.load(opt.pretrainedRNN)
+        rnn = model.rnn
+    end
 
     model = nn.Container()
     model:add(cnn)
-    model:add(rnn)
+    model:add(rnn:get(1))   --remove serial and repack it
 
     model = nn.Serial(model)
     model:mediumSerial()
@@ -187,7 +193,7 @@ while true do
     model.training_params.evaluation_counter = model.training_params.evaluation_counter + 1
 
     if model.training_params.evaluation_counter%model.opt.printError==0 then
-        print(string.format('Error for minibatch %4.1f is %4.7f.', model.training_params.evaluation_counter, fs[1]/model.opt.batchSize))
+        print(string.format('Error for minibatch %4.1f is %4.7f.', model.training_params.evaluation_counter, fs[1]))
     end
 
 
