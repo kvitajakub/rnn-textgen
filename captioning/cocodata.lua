@@ -13,14 +13,12 @@ end
 
 function generateCodes(js)
 
-    local text = ""
-    for i=1,#js['annotations'] do
-        text = text .. js['annotations'][i]['caption']
-    end
-
     local histogram = {}
-    for i =1,#text do
-        histogram[text:sub(i,i)] = (histogram[text:sub(i,i)] or 0)+1
+    for i=1,#js['annotations'] do
+        local cap = js['annotations'][i]['caption']
+        for j=1, #cap do
+            histogram[cap:sub(i,i)] = 0
+        end
     end
 
     local numberToChar = {}
