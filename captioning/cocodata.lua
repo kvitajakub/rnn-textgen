@@ -17,7 +17,7 @@ function generateCodes(js)
     for i=1,#js['annotations'] do
         local cap = js['annotations'][i]['caption']
         for j=1, #cap do
-            histogram[cap:sub(i,i)] = 0
+            histogram[cap:sub(j,j)] = 0
         end
     end
 

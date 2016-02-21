@@ -89,8 +89,9 @@ function nextBatch()
             table.insert(input,torch.CudaTensor(1))
             table.insert(target,torch.CudaTensor(1))
 
-            input[#input][1] = model.charToNumber[capt:sub(j,j)]
-            target[#target][1] = model.charToNumber[capt:sub(j,j)]
+            local val = model.charToNumber[capt:sub(j,j)]
+            input[#input][1] = val
+            target[#target][1] = val
         end
 
         table.insert(target,torch.CudaTensor(1))
