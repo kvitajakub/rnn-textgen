@@ -14,12 +14,12 @@ cmd:text()
 cmd:text('Train a RNN  part of the network for generating image captions.')
 cmd:text()
 cmd:text('Options')
-cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/coco/captions_train2014_small.json",'JSON file with the input data (captions, image names).')
+cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/coco/captions_train2014.json",'JSON file with the input data (captions, image names).')
 -- cmd:option('-captionFile',"/home/jkvita/DATA/Diplomka-data/coco/annotations/captions_train2014_small.json",'JSON file with the input data (captions, image names).')
 cmd:text()
-cmd:option('-recurLayers',3,'Number of recurrent layers. (At least one.)')
-cmd:option('-hiddenUnits',400,'Number of units in hidden layers. (At least one.)')
-cmd:option('-batchSize',5,'Minibatch size.')
+cmd:option('-recurLayers',5,'Number of recurrent layers. (At least one.)')
+cmd:option('-hiddenUnits',500,'Number of units in hidden layers. (At least one.)')
+cmd:option('-batchSize',10,'Minibatch size.')
 cmd:option('-printError',5,'Print error once per N minibatches.')
 cmd:option('-sample',100,'Try to sample once per N minibatches.')
 cmd:option('-saveModel',1000,'Save model once per N minibatches.')
@@ -33,8 +33,21 @@ training_params = {
     algorithm = optim.adam,
     evaluation_counter = 0,
 
-    learningRate=0.002
+    learningRate=0.0014,
+    beta1 = 0.92,
+    beta2 = 0.999
 }
+
+-- training_params = {
+--     algorithm = optim.sgd,
+--     evaluation_counter = 0,
+--
+--     learningRate=0.005,
+--     weightDecay=0.02,
+--     momentum = 0.90,
+--     nesterov = true,
+--     dampening = 0
+-- }
 
 function listCaptions(js)
     local captions = {}
@@ -44,16 +57,26 @@ function listCaptions(js)
     return captions
 end
 
-js = loadCaptions(opt.captionFile)
-captions = listCaptions(js)
 
 if opt.modelName ~= "" and path.exists(opt.modelName) then
     model = torch.load(opt.modelName)
     print('Model '..opt.modelName..' loaded.')
+
+    if opt.modelName ~= model.training_params.evaluation_counter..'__'..model.opt.modelName then
+        model.opt.modelName = opt.modelName
+        print("Model renamed.")
+    end
+
     print('Parameters overriden.')
     print(model.opt)
 
+    js = loadCaptions(model.opt.captionFile)
+    captions = listCaptions(js)
+
 else
+
+    js = loadCaptions(opt.captionFile)
+    captions = listCaptions(js)
 
     local charToNumber, numberToChar = generateCodes(js)
 
@@ -73,6 +96,7 @@ end
 criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
 criterion:cuda()
 
+
 -- minibatch computation
 function nextBatch()
     local inputs, targets = {}, {}
@@ -86,12 +110,14 @@ function nextBatch()
         input[1][1] = model.charToNumber["START"]
 
         for j=1,#capt do
-            table.insert(input,torch.CudaTensor(1))
-            table.insert(target,torch.CudaTensor(1))
+            -- if j<= #capt then
+                table.insert(input,torch.CudaTensor(1))
+                table.insert(target,torch.CudaTensor(1))
 
-            local val = model.charToNumber[capt:sub(j,j)]
-            input[#input][1] = val
-            target[#target][1] = val
+                local val = model.charToNumber[capt:sub(j,j)]
+                input[#input][1] = val
+                target[#target][1] = val
+            -- end
         end
 
         table.insert(target,torch.CudaTensor(1))

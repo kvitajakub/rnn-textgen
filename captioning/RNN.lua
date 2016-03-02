@@ -9,8 +9,10 @@ function RNN.createRNN(input_output, recurrent_layers, hidden)
 
     rnn:add(nn.OneHot(input_output))
     rnn:add(nn.LSTM(input_output, hidden))
+    rnn:add(nn.Dropout(0.5))
     for i=2,recurrent_layers do
         rnn:add(nn.LSTM(hidden, hidden))
+        rnn:add(nn.Dropout(0.5))
     end
     rnn:add(nn.Linear(hidden, input_output))
     rnn:add(nn.LogSoftMax())
