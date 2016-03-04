@@ -20,15 +20,15 @@ cmd:text()
 cmd:text('Options')
 -- cmd:option('-captionFile',"/home/jkvita/DATA/Diplomka-data/coco/annotations/captions_train2014_small.json",'JSON file with the input data (captions, image names).')
 -- cmd:option('-imageDirectory',"/home/jkvita/DATA/Diplomka-data/coco/train2014/",'Directory with the images with names according to the caption file.')
-cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/coco/captions_train2014_small.json",'JSON file with the input data (captions, image names).')
+cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/coco/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/coco/train2014/",'Directory with the images with names according to the caption file.')
 cmd:text()
 cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/cnn/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
-cmd:option('-pretrainedRNN',"", 'Path to a pretrained RNN.')
-cmd:option('-batchSize',10,'Minibatch size.')
-cmd:option('-printError',4,'Print error once per N minibatches.')
-cmd:option('-sample',25,'Try to sample once per N minibatches.')
-cmd:option('-saveModel',100,'Save model once per N minibatches.')
+cmd:option('-pretrainedRNN',"/storage/brno2/home/xkvita01/captioning/pretrainRNN/1.0384__5layers.torch", 'Path to a pretrained RNN.')
+cmd:option('-batchSize',25,'Minibatch size.')
+cmd:option('-printError',2,'Print error once per N minibatches.')
+cmd:option('-sample',50,'Try to sample once per N minibatches.')
+cmd:option('-saveModel',1000,'Save model once per N minibatches.')
 cmd:option('-modelName','model.torch','File name of the saved or loaded model and training data.')
 cmd:text()
 
@@ -39,8 +39,11 @@ opt = cmd:parse(arg)
 training_params = {
     algorithm = optim.adam,
     evaluation_counter = 0,
+    captions,  --how many training samples we have
 
-    learningRate=0.002
+    learningRate=0.002,
+    beta1 = 0.92,
+    beta2 = 0.999
 }
 
 
@@ -90,7 +93,7 @@ function feval(x_new)
     local error = 0
     local cnn = model:get(1):get(1)
     local rnn = model:get(1):get(2)
-    local rnnLayer = model:get(1):get(2):get(1):get(1):get(2)
+    local rnnLayer = rnn:get(1):get(1):get(2)
 
 	-- reset gradients (gradients are always accumulated, to accommodate batch methods)
     cnn:zeroGradParameters()
@@ -103,11 +106,13 @@ function feval(x_new)
         rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, cnn.output)
 
         local prediction = rnn:forward(inputs[i])
-        error = error + criterion:forward(prediction, targets[i])/#(targets[i])
+        error = error + criterion:forward(prediction, targets[i])
         local gradOutputs = criterion:backward(prediction, targets[i])
         rnn:backward(inputs[i], gradOutputs)
 
         cnn:backward(images[i],rnnLayer.gradPrevOutput)
+
+        error = error / #(targets[i])
     end
     error = error / #images
 
@@ -124,7 +129,7 @@ function tryToGenerate(N)
     local generatedCaptions = sample(model, images)
     model:training()
     model:cuda()
-    printOutput(imageFiles, generatedCaptions)
+    printOutput(imageFiles, generatedCaptions, captions)
 end
 
 --=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -147,20 +152,29 @@ else
     js = loadCaptions(opt.captionFile)
     local charToNumber, numberToChar = generateCodes(js)
 
-    local cnn
-    if opt.pretrainedCNN == "" then
-        cnn = CNN.createCNN()
-    else
-        cnn = torch.load(opt.pretrainedCNN)
-    end
+    training_params.captions = #(js['annotations'])
 
+    print("Loading RNN.")
     local rnn
-    if opt.pretrainedRNN == "" then
-        rnn = RNN.createRNN(#numberToChar, 10, 1000)
+    if opt.pretrainedRNN ~= "" and path.exists(opt.pretrainedRNN) then
+        local rnnModel = torch.load(opt.pretrainedRNN)
+        rnn = rnnModel.rnn
+        charToNumber = rnnModel.charToNumber
+        numberToChar = rnnModel.numberToChar
     else
-        local model = torch.load(opt.pretrainedRNN)
-        rnn = model.rnn
+        rnn = RNN.createRNN(#numberToChar, 5, 500)
     end
+    collectgarbage()
+
+    print("Loading CNN.")
+    local cnn
+    if opt.pretrainedCNN ~= "" and path.exists(opt.pretrainedCNN) then
+        cnn = torch.load(opt.pretrainedCNN)
+    else
+        cnn = CNN.createCNN(500)
+    end
+    collectgarbage()
+
 
     model = nn.Container()
     model:add(cnn)
@@ -169,6 +183,7 @@ else
     model = nn.Serial(model)
     model:mediumSerial()
 
+    print("Moving model to CUDA.")
     model:cuda()
 
     model.opt = opt
@@ -186,6 +201,7 @@ criterion:cuda()
 model:training()
 x, x_grad = model:getParameters() -- w,w_grad
 
+tryToGenerate()
 
 while true do
 -- get weights and loss wrt weights from the model
@@ -193,7 +209,8 @@ while true do
     model.training_params.evaluation_counter = model.training_params.evaluation_counter + 1
 
     if model.training_params.evaluation_counter%model.opt.printError==0 then
-        print(string.format('Error for minibatch %4.1f is %4.7f.', model.training_params.evaluation_counter, fs[1]))
+        -- print(string.format('Error for minibatch %4.1f is %4.7f.', model.training_params.evaluation_counter, fs[1]))
+        print(string.format('minibatch %d (epoch %2.4f) has error %4.7f', model.training_params.evaluation_counter, (model.training_params.evaluation_counter*model.opt.batchSize)/model.training_params.captions, fs[1]))
     end
 
 
@@ -208,10 +225,11 @@ while true do
 
 
     if model.training_params.evaluation_counter%model.opt.saveModel==0 then
+        local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/model.training_params.captions)..'__'..model.opt.modelName
         model:double()
-        torch.save(model.opt.modelName, model)
+        torch.save(name, model)
         model:cuda()
-        print(" >>> Model and data saved to "..model.opt.modelName..".")
+        print(" >>> Model and data saved to "..name)
     end
 
 

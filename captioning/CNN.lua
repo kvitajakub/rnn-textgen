@@ -1,7 +1,9 @@
 
 CNN = {}
 
-function CNN.createCNN()
+function CNN.createCNN(outputSize)
+
+    outputSize = outputSize or 500
 
     local cnn = nn.Sequential()
 
@@ -38,6 +40,8 @@ function CNN.createCNN()
     cnn:add(nn.SpatialAveragePooling(6, 6, 1, 1):ceil())
 
     model:add(nn.Reshape(1000))
+
+    model:add(nn.Linear(1000, outputSize))
 
     return cnn
 end

@@ -169,7 +169,7 @@ function sample()
 
     -- -- generation with initialization by random character
     -- local randomCharNumber = math.ceil(torch.random(1, #model.numberToChar))
-    -- -- generation with initialization by specific character (space)
+    -- -- generation with initialization by specific character (start character)
     local randomCharNumber = model.charToNumber['START']
     prediction = samplingRnn:forward(torch.CudaTensor{randomCharNumber})
     prediction:exp()

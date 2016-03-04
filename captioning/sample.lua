@@ -53,9 +53,13 @@ function sample(model, images, input_char)
 end
 
 
-function printOutput(imageFiles, descriptions)
+function printOutput(imageFiles, generatedDescriptions, correctDescriptions)
+    print("========SAMPLING=====================================================")
     for i=1,#imageFiles do
-        print(imageFiles[i])
-        print(descriptions[i])
+        print(correctDescriptions[i])
+        print("+++++++++++")
+        print(generatedDescriptions[i])
+    print("------------------------------------------------------------")
     end
+    print("=====================================================================")
 end
