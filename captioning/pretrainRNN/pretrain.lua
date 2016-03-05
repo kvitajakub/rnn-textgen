@@ -30,7 +30,6 @@ cmd:text()
 opt = cmd:parse(arg)
 
 training_params = {
-    algorithm = optim.adam,
     evaluation_counter = 0,
 
     learningRate=0.0014,
@@ -202,7 +201,7 @@ sample()
 
 for i=1,10000 do
 -- get weights and loss wrt weights from the model
-    res, fs = model.training_params.algorithm(feval, x, model.training_params)
+    res, fs = optim.adam(feval, x, model.training_params)
     model.training_params.evaluation_counter = model.training_params.evaluation_counter + 1
 
     if model.training_params.evaluation_counter%model.opt.printError==0 then
