@@ -132,6 +132,9 @@ function encodeCaption(caption, charToNumber)
         sequence[1] = charToNumber["START"]
         for i = 1,caption:len() do
             sequence[i+1] = charToNumber[caption:sub(i,i)]
+            if sequence[i+1] == nil then
+                error("No code for character.")
+            end
         end
         sequence[caption:len()+2] = charToNumber["END"]
 

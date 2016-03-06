@@ -6,6 +6,7 @@ require 'rnn'
 require 'dpnn'
 require 'cutorch'
 require 'cunn'
+tds = require 'tds'
 --local
 require 'cocodata'
 require 'CNN'
@@ -106,7 +107,7 @@ function feval(x_new)
 
         local prediction = rnn:forward(inputs[i])
         error = error + criterion:forward(prediction, targets[i]) / #(targets[i])
-        
+
         local gradOutputs = criterion:backward(prediction, targets[i])
         rnn:backward(inputs[i], gradOutputs)
 
@@ -141,17 +142,29 @@ if path.exists(opt.modelName) then
     model = torch.load(opt.modelName)
     model:cuda()
 
-    js = loadCaptions(model.opt.captionFile)
+    js = tds.Hash(loadCaptions(model.opt.captionFile))
+    -- js = loadCaptions(model.opt.captionFile)
 
     print(' >>> Model '..opt.modelName..' loaded.')
     print(' >>> Parameters overriden.')
     print(model.opt)
 else
     --create new model
-    js = loadCaptions(opt.captionFile)
+    js = tds.Hash(loadCaptions(opt.captionFile))
+    -- js = loadCaptions(opt.captionFile)
+
     local charToNumber, numberToChar = generateCodes(js)
 
     training_params.captions = #(js['annotations'])
+
+    print("Loading CNN.")
+    local cnn
+    if opt.pretrainedCNN ~= "" and path.exists(opt.pretrainedCNN) then
+        cnn = torch.load(opt.pretrainedCNN)
+    else
+        cnn = CNN.createCNN(500)
+    end
+    collectgarbage()
 
     print("Loading RNN.")
     local rnn
@@ -165,15 +178,7 @@ else
     end
     collectgarbage()
 
-    print("Loading CNN.")
-    local cnn
-    if opt.pretrainedCNN ~= "" and path.exists(opt.pretrainedCNN) then
-        cnn = torch.load(opt.pretrainedCNN)
-    else
-        cnn = CNN.createCNN(500)
-    end
-    collectgarbage()
-
+    print("Connecting networks.")
 
     model = nn.Container()
     model:add(cnn)
