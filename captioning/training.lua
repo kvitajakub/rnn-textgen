@@ -105,14 +105,14 @@ function feval(x_new)
         rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, cnn.output)
 
         local prediction = rnn:forward(inputs[i])
-        error = error + criterion:forward(prediction, targets[i])
+        error = error + criterion:forward(prediction, targets[i]) / #(targets[i])
+        
         local gradOutputs = criterion:backward(prediction, targets[i])
         rnn:backward(inputs[i], gradOutputs)
 
         cnn:backward(images[i],rnnLayer.gradPrevOutput)
-
-        error = error / #(targets[i])
     end
+
     error = error / #images
 
 	return error, x_grad

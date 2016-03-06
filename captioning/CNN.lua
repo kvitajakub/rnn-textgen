@@ -39,9 +39,9 @@ function CNN.createCNN(outputSize)
     cnn:add(nn.ReLU(true))
     cnn:add(nn.SpatialAveragePooling(6, 6, 1, 1):ceil())
 
-    model:add(nn.Reshape(1000))
+    cnn:add(nn.Reshape(1000))
 
-    model:add(nn.Linear(1000, outputSize))
+    cnn:add(nn.Linear(1000, outputSize))
 
     return cnn
 end
