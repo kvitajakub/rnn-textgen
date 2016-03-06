@@ -21,16 +21,17 @@ cmd:text()
 cmd:text('Options')
 -- cmd:option('-captionFile',"/home/jkvita/DATA/Diplomka-data/coco/annotations/captions_train2014_small.json",'JSON file with the input data (captions, image names).')
 -- cmd:option('-imageDirectory',"/home/jkvita/DATA/Diplomka-data/coco/train2014/",'Directory with the images with names according to the caption file.')
-cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/coco/captions_train2014.json",'JSON file with the input data (captions, image names).')
-cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/coco/train2014/",'Directory with the images with names according to the caption file.')
+cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
+cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/COCO/train2014/",'Directory with the images with names according to the caption file.')
 cmd:text()
-cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/cnn/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
-cmd:option('-pretrainedRNN',"/storage/brno2/home/xkvita01/captioning/pretrainRNN/1.0384__5layers.torch", 'Path to a pretrained RNN.')
+cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
+cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/TODO", 'Path to a pretrained RNN.')
 cmd:option('-batchSize',25,'Minibatch size.')
 cmd:option('-printError',2,'Print error once per N minibatches.')
 cmd:option('-sample',50,'Try to sample once per N minibatches.')
 cmd:option('-saveModel',1000,'Save model once per N minibatches.')
 cmd:option('-modelName','model.torch','File name of the saved or loaded model and training data.')
+cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/combined_model','Directory where to save the model.(add / at the end)')
 cmd:text()
 
 -- parse input params
@@ -231,9 +232,9 @@ while true do
     if model.training_params.evaluation_counter%model.opt.saveModel==0 then
         local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/model.training_params.captions)..'__'..model.opt.modelName
         model:double()
-        torch.save(name, model)
+        torch.save(model.opt.modelDirectory..name, model)
         model:cuda()
-        print(" >>> Model and data saved to "..name)
+        print(" >>> Model and data saved to "..model.opt.modelDirectory..name)
     end
 
 

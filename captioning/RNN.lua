@@ -19,9 +19,5 @@ function RNN.createRNN(input_output, recurrent_layers, hidden)
 
     rnn = nn.Serial(nn.Sequencer(rnn))
 
-    --INICIALIZATION
-    -- A1: initialization often depends on each dataset.
-    --rnn:getParameters():uniform(-0.1, 0.1)
-
     return rnn
 end
