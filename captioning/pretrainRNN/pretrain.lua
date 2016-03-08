@@ -56,6 +56,10 @@ function listCaptions(js)
     return captions
 end
 
+if not path.exists(opt.modelDirectory) then
+    os.execute("mkdir -p "..opt.modelDirectory)
+end
+
 
 if opt.modelName ~= "" and path.exists(opt.modelName) then
     model = torch.load(opt.modelName)
