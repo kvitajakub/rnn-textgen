@@ -155,16 +155,16 @@ Vytvareni uloh pres qsub
 Pres vytvarec [online](http://metavo.metacentrum.cz/pbsmon2/person). Pridat prepinac `-I` pro interaktivni rezim nebo pripojit spousteci skript.
 Napr. 8 cpu na jednom nodu s 4GB ram
 ```
-qsub -l walltime=1d -l mem=4gb -l scratch=0mb -l nodes=1:ppn=8:linux -I
+qsub -l walltime=1h -l mem=4gb -l scratch=0mb -l nodes=1:linux -I
 ```
 Uzel s GPU (max. 1 den)
 ```
-qsub -q gpu -l mem=4gb -l nodes=1:gpu=1:scratch=0mb:linux:cl_doom -I
-qsub -q gpu -l mem=4gb -l nodes=1:gpu=1:scratch=0mb:linux:cl_gram -I
+qsub -q gpu -l mem=6gb -l nodes=1:gpu=1:scratch=0mb:linux:cl_doom -I
+qsub -q gpu -l mem=6gb -l nodes=1:gpu=1:scratch=0mb:linux:cl_gram -I
 ```
 Uzel s GPU (na dlouho - tyden (cluster doom))
 ```
-qsub -l walltime=7d -q gpu_long -l mem=4gb -l nodes=1:gpu=1:scratch=0mb:linux:cl_doom -I
+qsub -l walltime=7d -q gpu_long -l mem=6gb -l nodes=1:gpu=1:scratch=0mb:linux:cl_doom -I
 ```
 
 Kontrola
