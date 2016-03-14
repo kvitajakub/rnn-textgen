@@ -4,6 +4,7 @@ require 'optim'
 --uncommon
 require 'rnn'
 require 'cunn'
+-- ProFi = require 'ProFi'
 --local
 require '../RNN'
 require '../cocodata'
@@ -60,6 +61,7 @@ if not path.exists(opt.modelDirectory) then
     os.execute("mkdir -p "..opt.modelDirectory)
 end
 
+-- ProFi:start()
 
 if opt.modelName ~= "" and path.exists(opt.modelName) then
     model = torch.load(opt.modelName)
@@ -213,6 +215,9 @@ while model.training_params.evaluation_counter * model.opt.batchSize - epochNum 
 
     if model.training_params.evaluation_counter%model.opt.printError==0 then
         print(string.format('minibatch %d (epoch %2.4f) has error %4.7f', model.training_params.evaluation_counter, (model.training_params.evaluation_counter*model.opt.batchSize)/#captions, fs[1]))
+
+        -- break ----------------
+
     end
     if model.training_params.evaluation_counter%50==0 then
         collectgarbage()
@@ -231,3 +236,6 @@ end
 local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#captions)..'__'..model.opt.modelName
 torch.save(model.opt.modelDirectory..name, model)
 print("Model saved to "..model.opt.modelDirectory..name)
+
+-- ProFi:stop()
+-- ProFi:writeReport( 'MyProfilingReport.txt' )
