@@ -4,10 +4,10 @@ require 'optim'
 --uncommon
 require 'rnn'
 require 'cunn'
--- ProFi = require 'ProFi'
 --local
 require '../RNN'
 require '../cocodata'
+require '../OneHotZero'
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -16,13 +16,15 @@ cmd:text('Train a RNN  part of the network for generating image captions.')
 cmd:text()
 cmd:text('Options')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
+-- cmd:option('-captionFile',"/home/jkvita/DATA/Diplomka-data/coco/annotations/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:text()
-cmd:option('-recurLayers',6,'Number of recurrent layers. (At least one.)')
-cmd:option('-hiddenUnits',500,'Number of units in hidden layers. (At least one.)')
+cmd:option('-recurLayers',3,'Number of recurrent layers. (At least one.)')
+cmd:option('-hiddenUnits',250,'Number of units in hidden layers. (At least one.)')
+cmd:option('-dropout',false,'Use dropout.')
 cmd:option('-batchSize',25,'Minibatch size.')
 cmd:option('-printError',5,'Print error once per N minibatches.')
-cmd:option('-sample',100,'Try to sample once per N minibatches.')
-cmd:option('-saveModel',1000,'Save model once per N minibatches.')
+cmd:option('-sample',25,'Try to sample once per N minibatches.')
+cmd:option('-saveModel',10000,'Save model once per N minibatches.')
 cmd:option('-modelName','rnn.torch','Filename of the model and training data.')
 cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/RNN/','Directory where to save the model.(add / at the end)')
 cmd:text()
@@ -33,21 +35,11 @@ opt = cmd:parse(arg)
 training_params = {
     evaluation_counter = 0,
 
-    learningRate=0.0014,
+    learningRate=0.001,
     beta1 = 0.92,
     beta2 = 0.999
 }
 
--- training_params = {
---     algorithm = optim.sgd,
---     evaluation_counter = 0,
---
---     learningRate=0.005,
---     weightDecay=0.02,
---     momentum = 0.90,
---     nesterov = true,
---     dampening = 0
--- }
 
 function listCaptions(js)
     local captions = {}
@@ -60,8 +52,6 @@ end
 if not path.exists(opt.modelDirectory) then
     os.execute("mkdir -p "..opt.modelDirectory)
 end
-
--- ProFi:start()
 
 if opt.modelName ~= "" and path.exists(opt.modelName) then
     model = torch.load(opt.modelName)
@@ -79,7 +69,7 @@ else
 
     local charToNumber, numberToChar = generateCodes(js)
 
-    rnn = RNN.createRNN(#numberToChar, opt.recurLayers, opt.hiddenUnits)
+    rnn = RNN.createRNN(#numberToChar, opt.recurLayers, opt.hiddenUnits, opt.dropout)
     rnn:cuda()
 
     model = {}
@@ -92,45 +82,52 @@ else
 end
 
 --create criterion
-criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
+criterion = nn.SequencerCriterion(nn.MaskZeroCriterion(nn.ClassNLLCriterion(), 1))
 criterion:cuda()
 
 
 -- minibatch computation
 function nextBatch()
-    local inputs, targets = {}, {}
-    local capt
+    local inputs, outputs = {}, {}
+    local capt = {}
+    local maxlen = 0
 
+    --list of current captions
     for i = 1,model.opt.batchSize do
-        local input, target = {}, {}
-
-        --compute starting index
         local index = (model.training_params.evaluation_counter*model.opt.batchSize+i-1) % (#captions) +1
-
-        capt = captions[index]
-
-        table.insert(input,torch.CudaTensor(1))
-        input[1][1] = model.charToNumber["START"]
-
-        for j=1,#capt do
-            -- if j<= #capt then
-                table.insert(input,torch.CudaTensor(1))
-                table.insert(target,torch.CudaTensor(1))
-
-                local val = model.charToNumber[capt:sub(j,j)]
-                input[#input][1] = val
-                target[#target][1] = val
-            -- end
+        table.insert(capt,captions[index])
+        if #(captions[index])>maxlen then
+            maxlen = #(captions[index])
         end
-
-        table.insert(target,torch.CudaTensor(1))
-        target[#target][1] = model.charToNumber["END"]
-
-        table.insert(inputs, input)
-        table.insert(targets,target)
     end
 
-    return inputs, targets
+    table.insert(inputs,torch.Tensor(model.opt.batchSize,1))
+    for i = 1,model.opt.batchSize do
+        inputs[1][i][1] = model.charToNumber["START"]
+    end
+
+    --for each time slice
+    for j = 1,maxlen+1 do
+        table.insert(inputs,torch.Tensor(model.opt.batchSize,1))
+        table.insert(outputs,torch.Tensor(model.opt.batchSize))
+        --for each sequence
+        for i = 1,model.opt.batchSize do
+            if j <= #(capt[i]) then
+                inputs[#inputs][i][1] = model.charToNumber[capt[i]:sub(j,j)]
+                outputs[#outputs][i] = model.charToNumber[capt[i]:sub(j,j)]
+            elseif j == #(capt[i])+1 then
+                inputs[#inputs][i][1] = 0
+                outputs[#outputs][i] = model.charToNumber["END"]
+            else
+                inputs[#inputs][i][1] = 0
+                outputs[#outputs][i] = 0
+            end
+        end
+    end
+    --remove last part of inputs because of START added to the beginning
+    table.remove(inputs)
+
+    return inputs, outputs
 end
 
 
@@ -145,15 +142,13 @@ function feval(x_new)
 	-- reset gradients (gradients are always accumulated, to accommodate batch methods)
     model.rnn:zeroGradParameters()
 
-    local error = 0
     -- evaluate the loss function and its derivative wrt x, given mini batch
-    for i=1,#inputs do
+    local prediction = model.rnn:forward(inputs)
+    local error = criterion:forward(prediction, targets)
+    local gradOutputs = criterion:backward(prediction, targets)
+    model.rnn:backward(inputs, gradOutputs)
 
-        local prediction = model.rnn:forward(inputs[i])
-        error = error + criterion:forward(prediction, targets[i]) / #(inputs[i])
-        local gradOutputs = criterion:backward(prediction, targets[i])
-        model.rnn:backward(inputs[i], gradOutputs)
-    end
+    --SequencerCriterion just adds but not divide
     error = error / #inputs
 
 	return error, x_grad
@@ -162,7 +157,7 @@ end
 
 function sample()
 
-    local samplingRnn = model.rnn:get(1):get(1):get(1)
+    local samplingRnn = model.rnn:get(1):get(1):get(1):get(1)
     samplingRnn:evaluate() --no need to remember history
     samplingRnn:forget() --!!!!!! IMPORTANT reset inner step count
     print('======Sampling==============================================')
@@ -171,23 +166,21 @@ function sample()
     local description = ""
     local safeCounter = 0
 
-
-    -- -- generation with initialization by random character
-    -- local randomCharNumber = math.ceil(torch.random(1, #model.numberToChar))
     -- -- generation with initialization by specific character (start character)
     local randomCharNumber = model.charToNumber['START']
-    prediction = samplingRnn:forward(torch.CudaTensor{randomCharNumber})
+    prediction = samplingRnn:forward(torch.Tensor{randomCharNumber})
+    -- prediction = samplingRnn:forward(torch.CudaTensor{randomCharNumber})
     prediction:exp()
     sample = torch.multinomial(prediction,1)
-    char = model.numberToChar[sample[1][1]]
+    char = model.numberToChar[sample[1]]
 
     while char ~= "END" and safeCounter<200 do
 
         description = description .. char
-        prediction = samplingRnn:forward(sample[1])
+        prediction = samplingRnn:forward(sample)
         prediction:exp()
         sample = torch.multinomial(prediction,1)
-        char = model.numberToChar[sample[1][1]]
+        char = model.numberToChar[sample[1]]
 
         safeCounter = safeCounter + 1
     end
@@ -213,18 +206,22 @@ while model.training_params.evaluation_counter * model.opt.batchSize - epochNum 
     res, fs = optim.adam(feval, x, model.training_params)
     model.training_params.evaluation_counter = model.training_params.evaluation_counter + 1
 
+    --print error
     if model.training_params.evaluation_counter%model.opt.printError==0 then
         print(string.format('minibatch %d (epoch %2.4f) has error %4.7f', model.training_params.evaluation_counter, (model.training_params.evaluation_counter*model.opt.batchSize)/#captions, fs[1]))
-
-        -- break ----------------
-
     end
+
+    --collect garbage
     if model.training_params.evaluation_counter%50==0 then
         collectgarbage()
     end
+
+    --sample
     if model.training_params.evaluation_counter%model.opt.sample==0 then
         sample()
     end
+
+    --save
     if model.training_params.evaluation_counter%model.opt.saveModel==0 then
         local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#captions)..'__'..model.opt.modelName
         torch.save(model.opt.modelDirectory..name, model)
@@ -236,6 +233,3 @@ end
 local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#captions)..'__'..model.opt.modelName
 torch.save(model.opt.modelDirectory..name, model)
 print("Model saved to "..model.opt.modelDirectory..name)
-
--- ProFi:stop()
--- ProFi:writeReport( 'MyProfilingReport.txt' )
