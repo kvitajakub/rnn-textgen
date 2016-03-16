@@ -61,6 +61,8 @@ if opt.modelName ~= "" and path.exists(opt.modelName) then
     js = loadCaptions(model.opt.captionFile)
     captions = listCaptions(js)
 
+    model.rnn:training()--!!!!!! IMPORTANT switch back to remembering state
+
 else
 
     js = loadCaptions(opt.captionFile)
@@ -70,6 +72,8 @@ else
 
     rnn = RNN.createRNN(#numberToChar, opt.recurLayers, opt.hiddenUnits, opt.dropout)
     rnn:cuda()
+
+    rnn:mediumSerial()
 
     model = {}
     model.rnn = rnn
@@ -100,17 +104,17 @@ function nextBatch()
         end
     end
 
-    table.insert(inputs,torch.CudaTensor(model.opt.batchSize,1))
-    for i = 1,model.opt.batchSize do
+    table.insert(inputs,torch.CudaTensor(#capt,1))
+    for i = 1,#capt do
         inputs[1][i][1] = model.charToNumber["START"]
     end
 
     --for each time slice
     for j = 1,maxlen+1 do
-        table.insert(inputs,torch.CudaTensor(model.opt.batchSize,1))
-        table.insert(outputs,torch.CudaTensor(model.opt.batchSize))
+        table.insert(inputs,torch.CudaTensor(#capt,1))
+        table.insert(outputs,torch.CudaTensor(#capt))
         --for each sequence
-        for i = 1,model.opt.batchSize do
+        for i = 1,#capt do
             if j <= #(capt[i]) then
                 inputs[#inputs][i][1] = model.charToNumber[capt[i]:sub(j,j)]
                 outputs[#outputs][i] = model.charToNumber[capt[i]:sub(j,j)]
@@ -144,6 +148,7 @@ function feval(x_new)
     -- evaluate the loss function and its derivative wrt x, given mini batch
     local prediction = model.rnn:forward(inputs)
     local error = criterion:forward(prediction, targets)
+
     local gradOutputs = criterion:backward(prediction, targets)
     model.rnn:backward(inputs, gradOutputs)
 
@@ -211,7 +216,7 @@ while model.training_params.evaluation_counter * model.opt.batchSize - epochNum 
     end
 
     --collect garbage
-    if model.training_params.evaluation_counter%50==0 then
+    if model.training_params.evaluation_counter%10==0 then
         collectgarbage()
     end
 

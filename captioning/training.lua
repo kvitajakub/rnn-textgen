@@ -12,6 +12,8 @@ require 'cocodata'
 require 'CNN'
 require 'RNN'
 require 'sample'
+require 'OneHotZero'
+
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -24,11 +26,12 @@ cmd:text('Options')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/COCO/train2014/",'Directory with the images with names according to the caption file.')
 cmd:text()
-cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
-cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/minibatch20/0.2415__5layers.torch", 'Path to a pretrained RNN.')
-cmd:option('-batchSize',25,'Minibatch size.')
+-- cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
+cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
+cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/3x200/0.0036__3x200newdrop.torch", 'Path to a pretrained RNN.')
+cmd:option('-batchSize',10,'Minibatch size.')
 cmd:option('-printError',2,'Print error once per N minibatches.')
-cmd:option('-sample',50,'Try to sample once per N minibatches.')
+cmd:option('-sample',20,'Try to sample once per N minibatches.')
 cmd:option('-saveModel',1000,'Save model once per N minibatches.')
 cmd:option('-modelName','model.torch','File name of the saved or loaded model and training data.')
 cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/combined_model/','Directory where to save the model.(add / at the end)')
@@ -50,36 +53,53 @@ training_params = {
 
 -- minibatch computation
 function nextBatch()
-    local inputs, targets = {}, {}
+    local inputs, outputs = {}, {}
 
     --get samples from caption file
-    local imageFiles, captions = imageSampleRandom(js, model.opt.batchSize, model.opt.imageDirectory)
+    local imageFiles, capt = imageSampleRandom(js, model.opt.batchSize, model.opt.imageDirectory)
+    local maxlen = 0
 
-    --prepare images
+    --prepare images (table of tensors)
     local images = loadAndPrepare(imageFiles, 224)
-    for i=1,#images do
-        images[i] = images[i]:cuda()
-    end
+    --tensor of tensors
+    local size = images[1]:size():totable()
+    table.insert(size, 1, #images)
+    images = torch.cat(images):view(unpack(size))
 
-    --encode captions
-    local sequences = encodeCaption(captions, model.charToNumber)
-
-    for k,v in ipairs(sequences) do
-        local sequencerInputTable = {}
-        local sequencerTargetTable = {}
-
-        table.insert(sequencerInputTable, v:sub(1,1):cuda())
-        for i = 2, v:size()[1]-1 do
-            table.insert(sequencerInputTable, v:sub(i,i):cuda())
-            table.insert(sequencerTargetTable, v:sub(i,i):cuda())
+    --maxlen of capt
+    for i = 1,#capt do
+        if #(capt[i])>maxlen then
+            maxlen = #(capt[i])
         end
-        table.insert(sequencerTargetTable, v:sub(-1,-1):cuda())
-
-        table.insert(inputs, sequencerInputTable)
-        table.insert(targets, sequencerTargetTable)
     end
 
-	return images, inputs, targets
+    table.insert(inputs,torch.CudaTensor(#capt,1))
+    for i = 1,#capt do
+        inputs[1][i][1] = model.charToNumber["START"]
+    end
+
+    --for each time slice
+    for j = 1,maxlen+1 do
+        table.insert(inputs,torch.CudaTensor(#capt,1))
+        table.insert(outputs,torch.CudaTensor(#capt))
+        --for each sequence
+        for i = 1,#capt do
+            if j <= #(capt[i]) then
+                inputs[#inputs][i][1] = model.charToNumber[capt[i]:sub(j,j)]
+                outputs[#outputs][i] = model.charToNumber[capt[i]:sub(j,j)]
+            elseif j == #(capt[i])+1 then
+                inputs[#inputs][i][1] = 0
+                outputs[#outputs][i] = model.charToNumber["END"]
+            else
+                inputs[#inputs][i][1] = 0
+                outputs[#outputs][i] = 0
+            end
+        end
+    end
+    --remove last part of inputs because of START added to the beginning
+    table.remove(inputs)
+
+	return images, inputs, outputs
 end
 
 
@@ -94,28 +114,26 @@ function feval(x_new)
     local error = 0
     local cnn = model:get(1):get(1)
     local rnn = model:get(1):get(2)
-    local rnnLayer = rnn:get(1):get(1):get(2)
+    local rnnLayer = rnn:get(1):get(1):get(1):get(2)
 
 	-- reset gradients (gradients are always accumulated, to accommodate batch methods)
     cnn:zeroGradParameters()
     rnn:zeroGradParameters()
 
     -- evaluate the loss function and its derivative wrt x, given mini batch
-    for i = 1, #images do
-        -- print(images[i])
-        cnn:forward(images[i])
-        rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, cnn.output)
+    cnn:forward(images)
+    rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, cnn.output)
 
-        local prediction = rnn:forward(inputs[i])
-        error = error + criterion:forward(prediction, targets[i]) / #(targets[i])
+    local prediction = model.rnn:forward(inputs)
+    local error = criterion:forward(prediction, targets)
 
-        local gradOutputs = criterion:backward(prediction, targets[i])
-        rnn:backward(inputs[i], gradOutputs)
+    local gradOutputs = criterion:backward(prediction, targets)
+    model.rnn:backward(inputs, gradOutputs)
 
-        cnn:backward(images[i],rnnLayer.gradPrevOutput)
-    end
+    cnn:backward(images,rnnLayer.gradPrevOutput)
 
-    error = error / #images
+    --SequencerCriterion just adds but not divide
+    error = error / #inputs
 
 	return error, x_grad
 end
@@ -137,6 +155,9 @@ end
 ---=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 --=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 ---=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+
 
 if path.exists(opt.modelName) then
     --load saved model
@@ -164,6 +185,7 @@ else
         cnn = torch.load(opt.pretrainedCNN)
     else
         cnn = CNN.createCNN(500)
+        print("CNN created.")
     end
     collectgarbage()
 
@@ -176,15 +198,17 @@ else
         numberToChar = rnnModel.numberToChar
     else
         rnn = RNN.createRNN(#numberToChar, 5, 500)
+        print("RNN created.")
     end
     collectgarbage()
 
-    print("Connecting networks.")
-
+    print("Connecting networks.1")
     model = nn.Container()
     model:add(cnn)
+    print("Connecting networks.1.5")
     model:add(rnn:get(1))   --remove serial and repack it
 
+    print("Connecting networks.2")
     model = nn.Serial(model)
     model:mediumSerial()
 
@@ -199,7 +223,7 @@ end
 
 
 --create criterion
-criterion = nn.SequencerCriterion(nn.ClassNLLCriterion())
+criterion = nn.SequencerCriterion(nn.MaskZeroCriterion(nn.ClassNLLCriterion(), 1))
 criterion:cuda()
 
 
