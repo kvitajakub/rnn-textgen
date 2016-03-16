@@ -42,7 +42,7 @@ training_params = {
     evaluation_counter = 0,
     captions,  --how many training samples we have
 
-    learningRate=0.002,
+    learningRate=0.001,
     beta1 = 0.92,
     beta2 = 0.999
 }
@@ -53,7 +53,7 @@ function nextBatch()
     local inputs, targets = {}, {}
 
     --get samples from caption file
-    local imageFiles, captions = imageSample(js, model.opt.batchSize, model.opt.imageDirectory)
+    local imageFiles, captions = imageSampleRandom(js, model.opt.batchSize, model.opt.imageDirectory)
 
     --prepare images
     local images = loadAndPrepare(imageFiles, 224)

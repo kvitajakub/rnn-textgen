@@ -16,15 +16,14 @@ cmd:text('Train a RNN  part of the network for generating image captions.')
 cmd:text()
 cmd:text('Options')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
--- cmd:option('-captionFile',"/home/jkvita/DATA/Diplomka-data/coco/annotations/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:text()
-cmd:option('-recurLayers',3,'Number of recurrent layers. (At least one.)')
-cmd:option('-hiddenUnits',250,'Number of units in hidden layers. (At least one.)')
+cmd:option('-recurLayers',5,'Number of recurrent layers. (At least one.)')
+cmd:option('-hiddenUnits',200,'Number of units in hidden layers. (At least one.)')
 cmd:option('-dropout',false,'Use dropout.')
 cmd:option('-batchSize',25,'Minibatch size.')
-cmd:option('-printError',5,'Print error once per N minibatches.')
-cmd:option('-sample',25,'Try to sample once per N minibatches.')
-cmd:option('-saveModel',10000,'Save model once per N minibatches.')
+cmd:option('-printError',25,'Print error once per N minibatches.')
+cmd:option('-sample',200,'Try to sample once per N minibatches.')
+cmd:option('-saveModel',1000,'Save model once per N minibatches.')
 cmd:option('-modelName','rnn.torch','Filename of the model and training data.')
 cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/RNN/','Directory where to save the model.(add / at the end)')
 cmd:text()
@@ -101,15 +100,15 @@ function nextBatch()
         end
     end
 
-    table.insert(inputs,torch.Tensor(model.opt.batchSize,1))
+    table.insert(inputs,torch.CudaTensor(model.opt.batchSize,1))
     for i = 1,model.opt.batchSize do
         inputs[1][i][1] = model.charToNumber["START"]
     end
 
     --for each time slice
     for j = 1,maxlen+1 do
-        table.insert(inputs,torch.Tensor(model.opt.batchSize,1))
-        table.insert(outputs,torch.Tensor(model.opt.batchSize))
+        table.insert(inputs,torch.CudaTensor(model.opt.batchSize,1))
+        table.insert(outputs,torch.CudaTensor(model.opt.batchSize))
         --for each sequence
         for i = 1,model.opt.batchSize do
             if j <= #(capt[i]) then
@@ -168,7 +167,7 @@ function sample()
 
     -- -- generation with initialization by specific character (start character)
     local randomCharNumber = model.charToNumber['START']
-    prediction = samplingRnn:forward(torch.Tensor{randomCharNumber})
+    prediction = samplingRnn:forward(torch.CudaTensor{randomCharNumber})
     -- prediction = samplingRnn:forward(torch.CudaTensor{randomCharNumber})
     prediction:exp()
     sample = torch.multinomial(prediction,1)

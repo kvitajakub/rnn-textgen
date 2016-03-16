@@ -39,7 +39,7 @@ function generateCodes(js)
 end
 
 
-function imageSample(captions, N, imageDirectory)
+function imageSampleRandom(captions, N, imageDirectory)
 
     imageDirectory = imageDirectory or ""
     N = N or 1
@@ -146,6 +146,6 @@ end
 --
 -- js = loadCaptions('../../../Diplomka-data/coco/annotations/captions_train2014_small.json')
 -- charToNumber, numberToChar = generateCodes(js)
--- imageFiles, captions = imageSample(js,5,"../../../Diplomka-data/coco/train2014_small/")
+-- imageFiles, captions = imageSampleRandom(js,5,"../../../Diplomka-data/coco/train2014_small/")
 -- sequences = encodeCaption(captions,charToNumber)
 -- images = loadAndPrepare(imageFiles)

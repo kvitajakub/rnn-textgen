@@ -20,18 +20,18 @@ module add intelcdk-15
 module add openmpi-intel
 export CMAKE_LIBRARY_PATH=$CMAKE_LIBRARY_PATH:$MKLROOT/lib/intel64
 ```
-Lua 5.2 jako interpret
+LuaJIT jako interpret
 ```
 git clone https://github.com/torch/distro.git /storage/brno2/home/xkvita01/torch --recursive
 cd /storage/brno2/home/xkvita01/torch
-TORCH_LUA_VERSION=LUA52 ./install.sh
+./install.sh
 . /storage/brno2/home/xkvita01/torch/install/bin/torch-activate
 ```
-LuaJIT jako interpret
+Lua 5.2 jako interpret
 ```
 git clone https://github.com/torch/distro.git /storage/brno7-cerit/home/xkvita01/torch --recursive
 cd /storage/brno7-cerit/home/xkvita01/torch
-./install.sh
+TORCH_LUA_VERSION=LUA52 ./install.sh
 . /storage/brno7-cerit/home/xkvita01/torch/install/bin/torch-activate
 ```
 Potreba updatovat nn balik, kvuli nejakym problemum s Cudou.
@@ -49,7 +49,6 @@ luarocks install rnn
 luarocks install tds
 luarocks install profi
 ```
-
 
 Updatovani Lua baliku, nechce se mi hledat jak to delat
 ```
@@ -129,7 +128,7 @@ module add intelcdk-15
 module add openmpi-intel
 module add cuda-6.5
 export OMP_NUM_THREADS=1
-. /storage/brno7-cerit/home/xkvita01/torch/install/bin/torch-activate
+. /storage/brno2/home/xkvita01/torch/install/bin/torch-activate
 ```
 
 Kopirovani dat
@@ -154,18 +153,17 @@ tar -xf data.tar
 Vytvareni uloh pres qsub
 ------------------------
 Pres vytvarec [online](http://metavo.metacentrum.cz/pbsmon2/person). Pridat prepinac `-I` pro interaktivni rezim nebo pripojit spousteci skript.
-Napr. 8 cpu na jednom nodu s 4GB ram
+Napr. 1 cpu na 24 hodin.
 ```
-qsub -l walltime=1h -l mem=4gb -l scratch=0mb -l nodes=1:ppn=1:gpu=1:^cl_konos -I
+qsub -I
 ```
 Uzel s GPU (max. 1 den)
 ```
-qsub -q gpu -l mem=6gb -l nodes=1:ppn=1:scratch=0mb:gpu=1:^cl_konos -I
-qsub -q gpu -l mem=6gb -l nodes=1:ppn=1:scratch=0mb:gpu=1:^cl_konos -I
+qsub -q gpu -l mem=4gb -l nodes=1:ppn=1:gpu=1:^cl_konos -I
 ```
 Uzel s GPU (na dlouho - tyden (cluster doom))
 ```
-qsub -l walltime=7d -q gpu_long -l mem=6gb -l nodes=1:ppn=1:scratch=0mb:gpu=1:^cl_konos -I
+qsub -l walltime=7d -q gpu_long -l mem=6gb -l nodes=1:ppn=1:gpu=1:^cl_konos -I
 ```
 
 Kontrola
