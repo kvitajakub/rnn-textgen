@@ -28,7 +28,8 @@ cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/COCO/train2014/
 cmd:text()
 -- cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
 cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
-cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/3x200/0.0036__3x200newdrop.torch", 'Path to a pretrained RNN.')
+-- cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/minibatch20/0.9176__5layers.torch", 'Path to a pretrained RNN.')
+cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/0.0036__4x200.torch", 'Path to a pretrained RNN.')
 cmd:option('-batchSize',10,'Minibatch size.')
 cmd:option('-printError',2,'Print error once per N minibatches.')
 cmd:option('-sample',20,'Try to sample once per N minibatches.')
@@ -59,12 +60,8 @@ function nextBatch()
     local imageFiles, capt = imageSampleRandom(js, model.opt.batchSize, model.opt.imageDirectory)
     local maxlen = 0
 
-    --prepare images (table of tensors)
+    --prepare images
     local images = loadAndPrepare(imageFiles, 224)
-    --tensor of tensors
-    local size = images[1]:size():totable()
-    table.insert(size, 1, #images)
-    images = torch.cat(images):view(unpack(size))
 
     --maxlen of capt
     for i = 1,#capt do
@@ -112,8 +109,8 @@ function feval(x_new)
 
 	local images, inputs, targets = nextBatch()
     local error = 0
-    local cnn = model:get(1):get(1)
-    local rnn = model:get(1):get(2)
+    local cnn = model:get(1)
+    local rnn = model:get(2)
     local rnnLayer = rnn:get(1):get(1):get(1):get(2)
 
 	-- reset gradients (gradients are always accumulated, to accommodate batch methods)
@@ -124,11 +121,11 @@ function feval(x_new)
     cnn:forward(images)
     rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, cnn.output)
 
-    local prediction = model.rnn:forward(inputs)
+    local prediction = rnn:forward(inputs)
     local error = criterion:forward(prediction, targets)
 
     local gradOutputs = criterion:backward(prediction, targets)
-    model.rnn:backward(inputs, gradOutputs)
+    rnn:backward(inputs, gradOutputs)
 
     cnn:backward(images,rnnLayer.gradPrevOutput)
 
@@ -141,13 +138,9 @@ end
 
 function tryToGenerate(N)
     N = N or 3
-    local imageFiles, captions = imageSample(js, N, model.opt.imageDirectory)
+    local imageFiles, captions = imageSampleRandom(js, N, model.opt.imageDirectory)
     local images = loadAndPrepare(imageFiles, 224)
-
-    model:double()
     local generatedCaptions = sample(model, images)
-    model:training()
-    model:cuda()
     printOutput(imageFiles, generatedCaptions, captions)
 end
 
@@ -187,6 +180,8 @@ else
         cnn = CNN.createCNN(500)
         print("CNN created.")
     end
+    print("Moving CNN to CUDA.")
+    cnn:cuda()
     collectgarbage()
 
     print("Loading RNN.")
@@ -194,12 +189,12 @@ else
     if opt.pretrainedRNN ~= "" and path.exists(opt.pretrainedRNN) then
         local rnnModel = torch.load(opt.pretrainedRNN)
         rnn = rnnModel.rnn
-        charToNumber = rnnModel.charToNumber
-        numberToChar = rnnModel.numberToChar
     else
         rnn = RNN.createRNN(#numberToChar, 5, 500)
         print("RNN created.")
     end
+    -- print("Moving RNN to CUDA.")
+    -- rnn:cuda()
     collectgarbage()
 
     print("Connecting networks.1")
@@ -209,16 +204,15 @@ else
     model:add(rnn:get(1))   --remove serial and repack it
 
     print("Connecting networks.2")
-    model = nn.Serial(model)
-    model:mediumSerial()
-
-    print("Moving model to CUDA.")
-    model:cuda()
+    -- model = nn.Serial(model)
+    -- model:mediumSerial()
 
     model.opt = opt
     model.training_params = training_params
     model.charToNumber = charToNumber
     model.numberToChar = numberToChar
+
+    print("Model created.")
 end
 
 
@@ -227,7 +221,6 @@ criterion = nn.SequencerCriterion(nn.MaskZeroCriterion(nn.ClassNLLCriterion(), 1
 criterion:cuda()
 
 
-model:training()
 x, x_grad = model:getParameters() -- w,w_grad
 
 tryToGenerate()

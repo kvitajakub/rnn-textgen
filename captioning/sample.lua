@@ -7,27 +7,24 @@ function sample(model, images, input_char)
     input_char = input_char or "START"
     local descriptions = {}
 
-    --tensor of tensors
-    local size = images[1]:size():totable()
-    table.insert(size, 1, #images)
-    images = torch.cat(images):view(unpack(size))
-
     model:evaluate() --no need to remember history
 
-    local cnn = model:get(1):get(1)
-    local rnnNoseq = model:get(1):get(2):get(1):get(1):get(1)
+    local cnn = model:get(1)
+    local rnnNoseq = model:get(2):get(1):get(1):get(1)
+    -- local cnn = model:get(1):get(1)
+    -- local rnnNoseq = model:get(1):get(2):get(1):get(1):get(1)
     local rnnLayer = rnnNoseq:get(2)
 
     rnnNoseq:forget()
 
-    local input_tensor = torch.Tensor{model.charToNumber[input_char]}
+    local input_tensor = torch.CudaTensor{model.charToNumber[input_char]}
     local prediction
     local description = ""
     local char
 
     local safeCounter = 0
 
-    for i=1, size[1] do
+    for i=1, images:size()[1] do
         cnn:forward(images[i])
 
         rnnNoseq:forget()
@@ -42,7 +39,7 @@ function sample(model, images, input_char)
         while char ~= "END" and safeCounter<200 do
 
             description = description .. char
-            prediction = rnnNoseq:forward(sample[1])
+            prediction = rnnNoseq:forward(sample)
             prediction:exp()
             sample = torch.multinomial(prediction,1)
             char = model.numberToChar[sample[1]]

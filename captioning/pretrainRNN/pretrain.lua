@@ -17,13 +17,13 @@ cmd:text()
 cmd:text('Options')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:text()
-cmd:option('-recurLayers',5,'Number of recurrent layers. (At least one.)')
+cmd:option('-recurLayers',4,'Number of recurrent layers. (At least one.)')
 cmd:option('-hiddenUnits',200,'Number of units in hidden layers. (At least one.)')
 cmd:option('-dropout',false,'Use dropout.')
-cmd:option('-batchSize',25,'Minibatch size.')
+cmd:option('-batchSize',15,'Minibatch size.')
 cmd:option('-printError',25,'Print error once per N minibatches.')
-cmd:option('-sample',200,'Try to sample once per N minibatches.')
-cmd:option('-saveModel',1000,'Save model once per N minibatches.')
+cmd:option('-sample',100,'Try to sample once per N minibatches.')
+cmd:option('-saveModel',100,'Save model once per N minibatches.')
 cmd:option('-modelName','rnn.torch','Filename of the model and training data.')
 cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/RNN/','Directory where to save the model.(add / at the end)')
 cmd:text()
@@ -60,8 +60,6 @@ if opt.modelName ~= "" and path.exists(opt.modelName) then
 
     js = loadCaptions(model.opt.captionFile)
     captions = listCaptions(js)
-
-    model.rnn:training()--!!!!!! IMPORTANT switch back to remembering state
 
 else
 

@@ -89,7 +89,12 @@ function loadAndPrepare(imageFile, outputSize)
             table.insert(images, loadAndPrepare(v,outputSize))
         end
 
-        return images
+        --tensor of tensors
+        local size = images[1]:size():totable()
+        table.insert(size, 1, #images)
+        images = torch.cat(images):view(unpack(size))
+
+        return images:cuda()
 
     else
 
