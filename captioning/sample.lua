@@ -2,7 +2,7 @@
 --model - as saved in training, no cuda
 --table of tensors of images 3x500x500
 --input character, initialization, usually not used
-function sample(model, images, input_char)
+function sampleModel(model, images, input_char)
 
     input_char = input_char or "START"
     local descriptions = {}
@@ -51,6 +51,8 @@ function sample(model, images, input_char)
         description = ""
         safeCounter = 0
     end
+
+    model:training()--!!!!!! IMPORTANT switch back to remembering state
 
     return descriptions
 end

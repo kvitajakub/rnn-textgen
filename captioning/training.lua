@@ -140,7 +140,7 @@ function tryToGenerate(N)
     N = N or 3
     local imageFiles, captions = imageSampleRandom(js, N, model.opt.imageDirectory)
     local images = loadAndPrepare(imageFiles, 224)
-    local generatedCaptions = sample(model, images)
+    local generatedCaptions = sampleModel(model, images)
     printOutput(imageFiles, generatedCaptions, captions)
 end
 
