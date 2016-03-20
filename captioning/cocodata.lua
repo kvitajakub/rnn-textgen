@@ -39,23 +39,31 @@ function generateCodes(js)
 end
 
 
-function imageSampleRandom(captions, N, imageDirectory)
-
-    imageDirectory = imageDirectory or ""
-    N = N or 1
-
-    local imagesPath = {}
-    local imagesCaption = {}
+function imageSample(captions, N, imageDirectory, startIndex)
 
     if not captions then
         error("No captions.")
     end
 
+    N = N or 1
+    imageDirectory = imageDirectory or ""
+
+    local imagesPath = {}
+    local imagesCaption = {}
+    local index
+
     for j=1,N do
 
-        local randomCaptionNumber = math.ceil(torch.random(1,#captions['annotations']))
-        local captionText = captions['annotations'][randomCaptionNumber]['caption']
-        local imageId = captions['annotations'][randomCaptionNumber]['image_id']
+        if startIndex then
+            --going sequentially from starting point
+            index = (startIndex+j-1) % (#captions['annotations']) + 1
+        else
+            --getting random captions from dataset
+            index = math.ceil(torch.random(1,#captions['annotations']))
+        end
+
+        local captionText = captions['annotations'][index]['caption']
+        local imageId = captions['annotations'][index]['image_id']
         local imageName
 
         local i=1
@@ -151,6 +159,6 @@ end
 --
 -- js = loadCaptions('../../../Diplomka-data/coco/annotations/captions_train2014_small.json')
 -- charToNumber, numberToChar = generateCodes(js)
--- imageFiles, captions = imageSampleRandom(js,5,"../../../Diplomka-data/coco/train2014_small/")
+-- imageFiles, captions = imageSample(js,5,"../../../Diplomka-data/coco/train2014_small/")
 -- sequences = encodeCaption(captions,charToNumber)
 -- images = loadAndPrepare(imageFiles)

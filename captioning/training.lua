@@ -44,7 +44,6 @@ opt = cmd:parse(arg)
 
 training_params = {
     evaluation_counter = 0,
-    captions,  --how many training samples we have
 
     learningRate=0.001,
     beta1 = 0.92,
@@ -57,7 +56,8 @@ function nextBatch()
     local inputs, outputs = {}, {}
 
     --get samples from caption file
-    local imageFiles, capt = imageSampleRandom(js, model.opt.batchSize, model.opt.imageDirectory)
+    local startIndex = model.training_params.evaluation_counter*model.opt.batchSize
+    local imageFiles, capt = imageSample(js, model.opt.batchSize, model.opt.imageDirectory, startIndex)
     local maxlen = 0
 
     --prepare images
@@ -138,7 +138,7 @@ end
 
 function tryToGenerate(N)
     N = N or 3
-    local imageFiles, captions = imageSampleRandom(js, N, model.opt.imageDirectory)
+    local imageFiles, captions = imageSample(js, N, model.opt.imageDirectory) --random
     local images = loadAndPrepare(imageFiles, 224)
     local generatedCaptions = sampleModel(model, images)
     printOutput(imageFiles, generatedCaptions, captions)
@@ -170,8 +170,6 @@ else
 
     local charToNumber, numberToChar = generateCodes(js)
 
-    training_params.captions = #(js['annotations'])
-
     print("Loading CNN.")
     local cnn
     if opt.pretrainedCNN ~= "" and path.exists(opt.pretrainedCNN) then
@@ -182,7 +180,6 @@ else
     end
     print("Moving CNN to CUDA.")
     cnn:cuda()
-    collectgarbage()
 
     print("Loading RNN.")
     local rnn
@@ -193,8 +190,6 @@ else
         rnn = RNN.createRNN(#numberToChar, 5, 500)
         print("RNN created.")
     end
-    -- print("Moving RNN to CUDA.")
-    -- rnn:cuda()
     collectgarbage()
 
     print("Connecting networks.1")
@@ -232,7 +227,7 @@ while true do
 
     if model.training_params.evaluation_counter%model.opt.printError==0 then
         -- print(string.format('Error for minibatch %4.1f is %4.7f.', model.training_params.evaluation_counter, fs[1]))
-        print(string.format('minibatch %d (epoch %2.4f) has error %4.7f', model.training_params.evaluation_counter, (model.training_params.evaluation_counter*model.opt.batchSize)/model.training_params.captions, fs[1]))
+        print(string.format('minibatch %d (epoch %2.4f) has error %4.7f', model.training_params.evaluation_counter, (model.training_params.evaluation_counter*model.opt.batchSize)/#(js['annotations']), fs[1]))
     end
 
 
@@ -247,10 +242,8 @@ while true do
 
 
     if model.training_params.evaluation_counter%model.opt.saveModel==0 then
-        local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/model.training_params.captions)..'__'..model.opt.modelName
-        model:double()
+        local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#(js['annotations']))..'__'..model.opt.modelName
         torch.save(model.opt.modelDirectory..name, model)
-        model:cuda()
         print(" >>> Model and data saved to "..model.opt.modelDirectory..name)
     end
 
