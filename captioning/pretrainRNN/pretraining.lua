@@ -8,6 +8,7 @@ require 'cunn'
 require '../RNN'
 require '../cocodata'
 require '../OneHotZero'
+require 'sampleRNN'
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -17,13 +18,13 @@ cmd:text()
 cmd:text('Options')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:text()
-cmd:option('-recurLayers',4,'Number of recurrent layers. (At least one.)')
+cmd:option('-recurLayers',2,'Number of recurrent layers. (At least one.)')
 cmd:option('-hiddenUnits',200,'Number of units in hidden layers. (At least one.)')
 cmd:option('-dropout',false,'Use dropout.')
 cmd:option('-batchSize',15,'Minibatch size.')
 cmd:option('-printError',25,'Print error once per N minibatches.')
 cmd:option('-sample',100,'Try to sample once per N minibatches.')
-cmd:option('-saveModel',100,'Save model once per N minibatches.')
+cmd:option('-saveModel',1000,'Save model once per N minibatches.')
 cmd:option('-modelName','rnn.torch','Filename of the model and training data.')
 cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/RNN/','Directory where to save the model.(add / at the end)')
 cmd:text()
@@ -157,48 +158,13 @@ function feval(x_new)
 end
 
 
-function sample()
-
-    local samplingRnn = model.rnn:get(1):get(1):get(1):get(1)
-    samplingRnn:evaluate() --no need to remember history
-    samplingRnn:forget() --!!!!!! IMPORTANT reset inner step count
-    print('======Sampling==============================================')
-
-    local prediction, sample, char
-    local description = ""
-    local safeCounter = 0
-
-    -- -- generation with initialization by specific character (start character)
-    local randomCharNumber = model.charToNumber['START']
-    prediction = samplingRnn:forward(torch.CudaTensor{randomCharNumber})
-    -- prediction = samplingRnn:forward(torch.CudaTensor{randomCharNumber})
-    prediction:exp()
-    sample = torch.multinomial(prediction,1)
-    char = model.numberToChar[sample[1]]
-
-    while char ~= "END" and safeCounter<200 do
-
-        description = description .. char
-        prediction = samplingRnn:forward(sample)
-        prediction:exp()
-        sample = torch.multinomial(prediction,1)
-        char = model.numberToChar[sample[1]]
-
-        safeCounter = safeCounter + 1
-    end
-
-    print(description)
-    print('============================================================')
-
-    samplingRnn:training()--!!!!!! IMPORTANT switch back to remembering state
-
-    return description
-end
-
-
 x, x_grad = model.rnn:getParameters() -- w,w_grad
 
-sample()
+sample(model)
+sample(model)
+sample(model)
+
+os.exit()
 
 epochNum = math.floor((model.training_params.evaluation_counter * model.opt.batchSize) / #captions)
 
@@ -220,7 +186,7 @@ while model.training_params.evaluation_counter * model.opt.batchSize - epochNum 
 
     --sample
     if model.training_params.evaluation_counter%model.opt.sample==0 then
-        sample()
+        sample(model)
     end
 
     --save

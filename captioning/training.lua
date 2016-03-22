@@ -183,22 +183,27 @@ else
 
     print("Loading RNN.")
     local rnn
+    local rnnHiddenUnits
     if opt.pretrainedRNN ~= "" and path.exists(opt.pretrainedRNN) then
         local rnnModel = torch.load(opt.pretrainedRNN)
         rnn = rnnModel.rnn
+        rnnHiddenUnits = rnnModel.opt.hiddenUnits
     else
-        rnn = RNN.createRNN(#numberToChar, 5, 500)
+        rnnHiddenUnits = 500
+        rnn = RNN.createRNN(#numberToChar, 5, rnnHiddenUnits)
         print("RNN created.")
     end
     collectgarbage()
 
-    print("Connecting networks.1")
+    print("Adding adapter to CNN.")
+    cnn:add(nn.Linear(1000, rnnHiddenUnits):cuda())
+
+    print("Adding networks to container.")
     model = nn.Container()
     model:add(cnn)
-    print("Connecting networks.1.5")
     model:add(rnn:get(1))   --remove serial and repack it
 
-    print("Connecting networks.2")
+    print("NOT wrapping in decorator Serial.")
     -- model = nn.Serial(model)
     -- model:mediumSerial()
 
