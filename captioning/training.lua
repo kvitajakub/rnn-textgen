@@ -28,8 +28,7 @@ cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/COCO/train2014/
 cmd:text()
 -- cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
 cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
--- cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/minibatch20/0.9176__5layers.torch", 'Path to a pretrained RNN.')
-cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/0.0036__4x200.torch", 'Path to a pretrained RNN.')
+cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/1.0000__2x200.torch", 'Path to a pretrained RNN.')
 cmd:option('-batchSize',10,'Minibatch size.')
 cmd:option('-printError',2,'Print error once per N minibatches.')
 cmd:option('-sample',20,'Try to sample once per N minibatches.')
@@ -41,15 +40,19 @@ cmd:text()
 -- parse input params
 opt = cmd:parse(arg)
 
-
 training_params = {
     evaluation_counter = 0,
-
-    learningRate=0.001,
-    beta1 = 0.92,
-    beta2 = 0.999
+    cnn = {
+        learningRate=0.001,
+        beta1 = 0.92,
+        beta2 = 0.999
+    },
+    rnn = {
+        learningRate=0.001,
+        beta1 = 0.92,
+        beta2 = 0.999
+    }
 }
-
 
 -- minibatch computation
 function nextBatch()
@@ -100,39 +103,43 @@ function nextBatch()
 end
 
 
-function feval(x_new)
+function training()
 
-    -- copy the weight if are changed, not usually used
-    if x ~= x_new then
-        x:copy(x_new)
+    function fevalCNN(x_new)
+        return x[1], x_grad[1]
     end
 
-	local images, inputs, targets = nextBatch()
-    local error = 0
-    local cnn = model:get(1)
-    local rnn = model:get(2)
-    local rnnLayer = rnn:get(1):get(1):get(1):get(2)
+    function fevalRNN(x_new)
+        return x[2], x_grad[2]
+    end
 
-	-- reset gradients (gradients are always accumulated, to accommodate batch methods)
-    cnn:zeroGradParameters()
-    rnn:zeroGradParameters()
+    local images, inputs, targets = nextBatch()
+    local rnnLayer = model.rnn:get(1):get(1):get(1):get(1):get(2)
+
+    -- reset gradients (gradients are always accumulated, to accommodate batch methods)
+    model.cnn:zeroGradParameters()
+    model.rnn:zeroGradParameters()
 
     -- evaluate the loss function and its derivative wrt x, given mini batch
-    cnn:forward(images)
-    rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, cnn.output)
+    model.cnn:forward(images)
+    rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, model.cnn.output)
 
-    local prediction = rnn:forward(inputs)
+    local prediction = model.rnn:forward(inputs)
     local error = criterion:forward(prediction, targets)
 
     local gradOutputs = criterion:backward(prediction, targets)
-    rnn:backward(inputs, gradOutputs)
+    model.rnn:backward(inputs, gradOutputs)
 
-    cnn:backward(images,rnnLayer.gradPrevOutput)
+    model.cnn:backward(images,rnnLayer.gradPrevOutput)
+
+    ----------------------------------------------------
+    local res1, fs1 = optim.adam(fevalCNN, x[1], model.training_params.cnn)
+    local res2, fs2 = optim.adam(fevalRNN, x[2], model.training_params.rnn)
+    ----------------------------------------------------
 
     --SequencerCriterion just adds but not divide
     error = error / #inputs
-
-	return error, x_grad
+    return error
 end
 
 
@@ -178,8 +185,6 @@ else
         cnn = CNN.createCNN(500)
         print("CNN created.")
     end
-    print("Moving CNN to CUDA.")
-    cnn:cuda()
 
     print("Loading RNN.")
     local rnn
@@ -196,14 +201,16 @@ else
     collectgarbage()
 
     print("Adding adapter to CNN.")
-    cnn:add(nn.Linear(1000, rnnHiddenUnits):cuda())
+    cnn:add(nn.Linear(1000, rnnHiddenUnits))
 
-    print("Adding networks to container.")
-    model = nn.Container()
-    model:add(cnn)
-    model:add(rnn:get(1))   --remove serial and repack it
+    print("Moving CNN to CUDA.")
+    cnn:cuda()
 
-    print("NOT wrapping in decorator Serial.")
+    model = {}
+    model.cnn = cnn
+    model.rnn = rnn   --remove serial and repack it
+
+    -- print("NOT wrapping in decorator Serial.")
     -- model = nn.Serial(model)
     -- model:mediumSerial()
 
@@ -220,19 +227,18 @@ end
 criterion = nn.SequencerCriterion(nn.MaskZeroCriterion(nn.ClassNLLCriterion(), 1))
 criterion:cuda()
 
-
-x, x_grad = model:getParameters() -- w,w_grad
+x = {}; x_grad = {}
+x[1], x_grad[1] = model.cnn:getParameters() -- w,w_grad
+x[2], x_grad[2] = model.rnn:getParameters() -- w,w_grad
 
 tryToGenerate()
 
 while true do
--- get weights and loss wrt weights from the model
-    res, fs = optim.adam(feval, x, model.training_params)
+    error = training()
     model.training_params.evaluation_counter = model.training_params.evaluation_counter + 1
 
     if model.training_params.evaluation_counter%model.opt.printError==0 then
-        -- print(string.format('Error for minibatch %4.1f is %4.7f.', model.training_params.evaluation_counter, fs[1]))
-        print(string.format('minibatch %d (epoch %2.4f) has error %4.7f', model.training_params.evaluation_counter, (model.training_params.evaluation_counter*model.opt.batchSize)/#(js['annotations']), fs[1]))
+        print(string.format('minibatch %d (epoch %2.4f) has error %4.7f', model.training_params.evaluation_counter, (model.training_params.evaluation_counter*model.opt.batchSize)/#(js['annotations']), error))
     end
 
 

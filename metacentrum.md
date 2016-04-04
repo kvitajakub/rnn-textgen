@@ -159,11 +159,11 @@ qsub -I
 ```
 Uzel s GPU (max. 1 den)
 ```
-qsub -q gpu -l mem=4gb -l nodes=1:ppn=1:gpu=1:^cl_konos -I
+qsub -q gpu -l mem=4gb -l nodes=1:ppn=2:gpu=1:^cl_konos -I
 ```
 Uzel s GPU (na dlouho - tyden (cluster doom))
 ```
-qsub -l walltime=7d -q gpu_long -l mem=6gb -l nodes=1:ppn=1:gpu=1:^cl_konos -I
+qsub -l walltime=7d -q gpu_long -l mem=6gb -l nodes=1:ppn=2:gpu=1:^cl_konos -I
 ```
 
 Kontrola

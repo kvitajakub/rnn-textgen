@@ -7,13 +7,12 @@ function sampleModel(model, images, input_char)
     input_char = input_char or "START"
     local descriptions = {}
 
-    model:evaluate() --no need to remember history
+    model.cnn:evaluate() --no need to remember history
+    model.rnn:evaluate() --no need to remember history
 
-    local cnn = model:get(1)
-    local rnnNoseq = model:get(2):get(1):get(1):get(1)
-    -- local cnn = model:get(1):get(1)
-    -- local rnnNoseq = model:get(1):get(2):get(1):get(1):get(1)
-    local rnnLayer = rnnNoseq:get(2)
+    local cnn = model.cnn
+    local rnnNoseq = model.rnn:get(1):get(1):get(1)
+    local rnnLayer = rnnNoseq:get(1):get(2)
 
     rnnNoseq:forget()
 
@@ -52,7 +51,8 @@ function sampleModel(model, images, input_char)
         safeCounter = 0
     end
 
-    model:training()--!!!!!! IMPORTANT switch back to remembering state
+    model.cnn:training()--!!!!!! IMPORTANT switch back to remembering state
+    model.rnn:training()--!!!!!! IMPORTANT switch back to remembering state
 
     return descriptions
 end
