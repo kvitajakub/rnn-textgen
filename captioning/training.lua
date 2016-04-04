@@ -64,6 +64,7 @@ function nextBatch()
     local maxlen = 0
 
     --prepare images
+    cutorch.setDevice(1)
     local images = loadAndPrepare(imageFiles, 224)
 
     --maxlen of capt
@@ -73,6 +74,7 @@ function nextBatch()
         end
     end
 
+    cutorch.setDevice(2)
     table.insert(inputs,torch.CudaTensor(#capt,1))
     for i = 1,#capt do
         inputs[1][i][1] = model.charToNumber["START"]
@@ -117,11 +119,16 @@ function training()
     local rnnLayer = model.rnn:get(1):get(1):get(1):get(1):get(2)
 
     -- reset gradients (gradients are always accumulated, to accommodate batch methods)
+    cutorch.setDevice(1)
     model.cnn:zeroGradParameters()
+    cutorch.setDevice(2)
     model.rnn:zeroGradParameters()
 
     -- evaluate the loss function and its derivative wrt x, given mini batch
+    cutorch.setDevice(1)
     model.cnn:forward(images)
+    cutorch.synchronizeAll()
+    cutorch.setDevice(2)
     rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, model.cnn.output)
 
     local prediction = model.rnn:forward(inputs)
@@ -130,10 +137,14 @@ function training()
     local gradOutputs = criterion:backward(prediction, targets)
     model.rnn:backward(inputs, gradOutputs)
 
-    model.cnn:backward(images,rnnLayer.gradPrevOutput)
+    cutorch.synchronizeAll()
+    cutorch.setDevice(1)
+    local gradPrevOutput = rnnLayer.gradPrevOutput:clone()
+    model.cnn:backward(images, gradPrevOutput)
 
     ----------------------------------------------------
     local res1, fs1 = optim.adam(fevalCNN, x[1], model.training_params.cnn)
+    cutorch.setDevice(2)
     local res2, fs2 = optim.adam(fevalRNN, x[2], model.training_params.rnn)
     ----------------------------------------------------
 
@@ -146,6 +157,7 @@ end
 function tryToGenerate(N)
     N = N or 3
     local imageFiles, captions = imageSample(js, N, model.opt.imageDirectory) --random
+    cutorch.setDevice(1)
     local images = loadAndPrepare(imageFiles, 224)
     local generatedCaptions = sampleModel(model, images)
     printOutput(imageFiles, generatedCaptions, captions)
@@ -178,6 +190,7 @@ else
     local charToNumber, numberToChar = generateCodes(js)
 
     print("Loading CNN.")
+    cutorch.setDevice(1)
     local cnn
     if opt.pretrainedCNN ~= "" and path.exists(opt.pretrainedCNN) then
         cnn = torch.load(opt.pretrainedCNN)
@@ -187,6 +200,7 @@ else
     end
 
     print("Loading RNN.")
+    cutorch.setDevice(2)
     local rnn
     local rnnHiddenUnits
     if opt.pretrainedRNN ~= "" and path.exists(opt.pretrainedRNN) then
@@ -200,6 +214,8 @@ else
     end
     collectgarbage()
 
+
+    cutorch.setDevice(1)
     print("Adding adapter to CNN.")
     cnn:add(nn.Linear(1000, rnnHiddenUnits))
 
@@ -225,10 +241,13 @@ end
 
 --create criterion
 criterion = nn.SequencerCriterion(nn.MaskZeroCriterion(nn.ClassNLLCriterion(), 1))
+cutorch.setDevice(2)
 criterion:cuda()
 
 x = {}; x_grad = {}
+cutorch.setDevice(1)
 x[1], x_grad[1] = model.cnn:getParameters() -- w,w_grad
+cutorch.setDevice(2)
 x[2], x_grad[2] = model.rnn:getParameters() -- w,w_grad
 
 tryToGenerate()

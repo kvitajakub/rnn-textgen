@@ -14,6 +14,7 @@ function sampleModel(model, images, input_char)
     local rnnNoseq = model.rnn:get(1):get(1):get(1)
     local rnnLayer = rnnNoseq:get(1):get(2)
 
+    cutorch.setDevice(2)
     rnnNoseq:forget()
 
     local input_tensor = torch.CudaTensor{model.charToNumber[input_char]}
@@ -24,10 +25,13 @@ function sampleModel(model, images, input_char)
     local safeCounter = 0
 
     for i=1, images:size()[1] do
+        cutorch.setDevice(1)
         cnn:forward(images[i])
 
+        cutorch.setDevice(2)
         rnnNoseq:forget()
 
+        cutorch.synchronizeAll()
         rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, cnn.output)
 
         prediction = rnnNoseq:forward(input_tensor)
