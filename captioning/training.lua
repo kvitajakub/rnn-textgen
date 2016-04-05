@@ -174,7 +174,10 @@ end
 if path.exists(opt.modelName) then
     --load saved model
     model = torch.load(opt.modelName)
-    model:cuda()
+    cutorch.setDevice(1)
+    model.cnn:cuda()
+    cutorch.setDevice(2)
+    model.rnn:cuda()
 
     js = tds.Hash(loadCaptions(model.opt.captionFile))
     -- js = loadCaptions(model.opt.captionFile)
@@ -185,7 +188,6 @@ if path.exists(opt.modelName) then
 else
     --create new model
     js = tds.Hash(loadCaptions(opt.captionFile))
-    -- js = loadCaptions(opt.captionFile)
 
     local charToNumber, numberToChar = generateCodes(js)
 
@@ -214,10 +216,10 @@ else
     end
     collectgarbage()
 
-
     cutorch.setDevice(1)
     print("Adding adapter to CNN.")
     cnn:add(nn.Linear(1000, rnnHiddenUnits))
+    cnn:add(nn.ReLU(true))
 
     print("Moving CNN to CUDA.")
     cnn:cuda()
@@ -261,7 +263,7 @@ while true do
     end
 
 
-    if model.training_params.evaluation_counter%20==0 then
+    if model.training_params.evaluation_counter%15==0 then
         collectgarbage()
     end
 
@@ -273,7 +275,14 @@ while true do
 
     if model.training_params.evaluation_counter%model.opt.saveModel==0 then
         local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#(js['annotations']))..'__'..model.opt.modelName
+        model.rnn:forget()
+        model.cnn:double()
+        model.rnn:double()
         torch.save(model.opt.modelDirectory..name, model)
+        cutorch.setDevice(1)
+        model.cnn:cuda()
+        cutorch.setDevice(2)
+        model.rnn:cuda()
         print(" >>> Model and data saved to "..model.opt.modelDirectory..name)
     end
 
