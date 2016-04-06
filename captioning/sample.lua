@@ -11,7 +11,7 @@ function sampleModel(model, images, input_char)
     model.rnn:evaluate() --no need to remember history
 
     local cnn = model.cnn
-    local rnnNoseq = model.rnn:get(1):get(1):get(1)
+    local rnnNoseq = model.rnn:get(1):get(1):get(1):get(1)
     local rnnLayer = rnnNoseq:get(1):get(2)
 
     cutorch.setDevice(2)

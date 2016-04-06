@@ -116,7 +116,7 @@ function training()
     end
 
     local images, inputs, targets = nextBatch()
-    local rnnLayer = model.rnn:get(1):get(1):get(1):get(1):get(2)
+    local rnnLayer = model.rnn:get(1):get(1):get(1):get(1):get(1):get(2)
 
     -- reset gradients (gradients are always accumulated, to accommodate batch methods)
     cutorch.setDevice(1)
@@ -163,6 +163,31 @@ function tryToGenerate(N)
     printOutput(imageFiles, generatedCaptions, captions)
 end
 
+
+function saveModel(modelName, model)
+
+    torch.save(modelName..".cnn", model.cnn)
+    torch.save(modelName..".rnn", model.rnn)
+    local cnn = model.cnn
+    model.cnn = nil
+    local rnn = model.rnn
+    model.rnn = nil
+    torch.save(modelName, model)
+    model.cnn = cnn
+    model.rnn = rnn
+end
+
+
+function loadModel(modelName)
+
+    local model = torch.load(opt.modelName)
+    cutorch.setDevice(1)
+    model.cnn = torch.load(opt.modelName..'.cnn')
+    cutorch.setDevice(2)
+    model.rnn = torch.load(opt.modelName..'.rnn')
+
+    return model
+end
 --=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 ---=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 --=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -173,14 +198,9 @@ end
 
 if path.exists(opt.modelName) then
     --load saved model
-    model = torch.load(opt.modelName)
-    cutorch.setDevice(1)
-    model.cnn:cuda()
-    cutorch.setDevice(2)
-    model.rnn:cuda()
+    model = loadModel(opt.modelName)
 
     js = tds.Hash(loadCaptions(model.opt.captionFile))
-    -- js = loadCaptions(model.opt.captionFile)
 
     print(' >>> Model '..opt.modelName..' loaded.')
     print(' >>> Parameters overriden.')
@@ -225,8 +245,8 @@ else
     cnn:cuda()
 
     model = {}
-    model.cnn = cnn
-    model.rnn = rnn   --remove serial and repack it
+    model.cnn = nn.Serial(cnn)
+    model.rnn = nn.Serial(rnn)
 
     -- print("NOT wrapping in decorator Serial.")
     -- model = nn.Serial(model)
@@ -275,14 +295,9 @@ while true do
 
     if model.training_params.evaluation_counter%model.opt.saveModel==0 then
         local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#(js['annotations']))..'__'..model.opt.modelName
-        model.rnn:forget()
-        model.cnn:double()
-        model.rnn:double()
-        torch.save(model.opt.modelDirectory..name, model)
-        cutorch.setDevice(1)
-        model.cnn:cuda()
-        cutorch.setDevice(2)
-        model.rnn:cuda()
+
+        saveModel(model.opt.modelDirectory..name, model)
+
         print(" >>> Model and data saved to "..model.opt.modelDirectory..name)
     end
 
