@@ -40,26 +40,24 @@ cmd:text()
 -- parse input params
 opt = cmd:parse(arg)
 
-training_params = {
-    evaluation_counter = 0,
-    cnn = {
-        learningRate=0.001,
-        beta1 = 0.92,
-        beta2 = 0.999
-    },
-    rnn = {
-        learningRate=0.001,
-        beta1 = 0.92,
-        beta2 = 0.999
-    }
+training_params_cnn = {
+    learningRate=0.001,
+    beta1 = 0.92,
+    beta2 = 0.999
 }
+training_params_rnn = {
+    learningRate=0.001,
+    beta1 = 0.92,
+    beta2 = 0.999
+}
+
 
 -- minibatch computation
 function nextBatch()
     local inputs, outputs = {}, {}
 
     --get samples from caption file
-    local startIndex = model.training_params.evaluation_counter*model.opt.batchSize
+    local startIndex = model.evaluation_counter*model.opt.batchSize
     local imageFiles, capt = imageSample(js, model.opt.batchSize, model.opt.imageDirectory, startIndex)
     local maxlen = 0
 
@@ -143,9 +141,9 @@ function training()
     model.cnn:backward(images, gradPrevOutput)
 
     ----------------------------------------------------
-    local res1, fs1 = optim.adam(fevalCNN, x[1], model.training_params.cnn)
+    local res1, fs1 = optim.adam(fevalCNN, x[1], model.cnn.training_params)
     cutorch.setDevice(2)
-    local res2, fs2 = optim.adam(fevalRNN, x[2], model.training_params.rnn)
+    local res2, fs2 = optim.adam(fevalRNN, x[2], model.rnn.training_params)
     ----------------------------------------------------
 
     --SequencerCriterion just adds but not divide
@@ -220,6 +218,7 @@ else
         cnn = CNN.createCNN(500)
         print("CNN created.")
     end
+    cnn.training_params = training_params_cnn
 
     print("Loading RNN.")
     cutorch.setDevice(2)
@@ -234,6 +233,7 @@ else
         rnn = RNN.createRNN(#numberToChar, 5, rnnHiddenUnits)
         print("RNN created.")
     end
+    rnn.training_params = training_params_rnn
     collectgarbage()
 
     cutorch.setDevice(1)
@@ -253,7 +253,7 @@ else
     -- model:mediumSerial()
 
     model.opt = opt
-    model.training_params = training_params
+    model.evaluation_counter = 0
     model.charToNumber = charToNumber
     model.numberToChar = numberToChar
 
@@ -276,25 +276,25 @@ tryToGenerate()
 
 while true do
     error = training()
-    model.training_params.evaluation_counter = model.training_params.evaluation_counter + 1
+    model.evaluation_counter = model.evaluation_counter + 1
 
-    if model.training_params.evaluation_counter%model.opt.printError==0 then
-        print(string.format('minibatch %d (epoch %2.4f) has error %4.7f', model.training_params.evaluation_counter, (model.training_params.evaluation_counter*model.opt.batchSize)/#(js['annotations']), error))
+    if model.evaluation_counter%model.opt.printError==0 then
+        print(string.format('minibatch %d (epoch %2.4f) has error %4.7f', model.evaluation_counter, (model.evaluation_counter*model.opt.batchSize)/#(js['annotations']), error))
     end
 
 
-    if model.training_params.evaluation_counter%15==0 then
+    if model.evaluation_counter%15==0 then
         collectgarbage()
     end
 
 
-    if model.training_params.evaluation_counter%model.opt.sample==0 then
+    if model.evaluation_counter%model.opt.sample==0 then
         tryToGenerate()
     end
 
 
-    if model.training_params.evaluation_counter%model.opt.saveModel==0 then
-        local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#(js['annotations']))..'__'..model.opt.modelName
+    if model.evaluation_counter%model.opt.saveModel==0 then
+        local name = string.format('%2.4f',(model.evaluation_counter*model.opt.batchSize)/#(js['annotations']))..'__'..model.opt.modelName
 
         saveModel(model.opt.modelDirectory..name, model)
 
