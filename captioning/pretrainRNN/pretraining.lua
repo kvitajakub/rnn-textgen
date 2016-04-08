@@ -161,10 +161,6 @@ end
 x, x_grad = model.rnn:getParameters() -- w,w_grad
 
 sample(model)
-sample(model)
-sample(model)
-
-os.exit()
 
 epochNum = math.floor((model.training_params.evaluation_counter * model.opt.batchSize) / #captions)
 
@@ -190,11 +186,11 @@ while model.training_params.evaluation_counter * model.opt.batchSize - epochNum 
     end
 
     --save
-    if model.training_params.evaluation_counter%model.opt.saveModel==0 then
-        local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#captions)..'__'..model.opt.modelName
-        torch.save(model.opt.modelDirectory..name, model)
-        print("Model saved to "..model.opt.modelDirectory..name)
-    end
+    -- if model.training_params.evaluation_counter%model.opt.saveModel==0 then
+    --     local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#captions)..'__'..model.opt.modelName
+    --     torch.save(model.opt.modelDirectory..name, model)
+    --     print("Model saved to "..model.opt.modelDirectory..name)
+    -- end
 end
 
 --save the trained epoch

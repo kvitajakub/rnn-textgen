@@ -159,6 +159,7 @@ qsub -I
 ```
 Uzel s GPU (max. 1 den)
 ```
+qsub -q gpu -l mem=6gb -l nodes=1:ppn=2:gpu=1:^cl_konos -I
 qsub -q gpu -l mem=6gb -l nodes=1:ppn=2:gpu=2:^cl_konos -I
 ```
 Uzel s GPU (na dlouho - tyden (cluster doom))
@@ -211,4 +212,4 @@ cd /storage/brno7-cerit/home/xkvita01/RNN/
 ```
 
 
-th training.lua -pretrainedCNN /storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers.torch  -pretrainedRNN /storage/brno7-cerit/home/xkvita01/RNN/1.0000__4x500.torch -batchSize 15 -printError 10 -sample 100 -saveModel 1000 -modelName VGG_4x500.torch
+th training.lua -pretrainedCNN /storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers.torch  -pretrainedRNN /storage/brno7-cerit/home/xkvita01/RNN/1.0000__3x200.torch -batchSize 15 -printError 10 -sample 100 -saveModel 2000 -modelName VGG_3x200.torch
