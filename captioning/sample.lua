@@ -11,6 +11,7 @@ function sampleModel(model, images, input_char)
     model.rnn:evaluate() --no need to remember history
 
     local cnn = model.cnn
+    local adapt = model.adapt
     local rnnNoseq = model.rnn:get(1):get(1):get(1):get(1)
     local rnnLayer = rnnNoseq:get(1):get(2)
 
@@ -27,17 +28,19 @@ function sampleModel(model, images, input_char)
     for i=1, images:size()[1] do
         cutorch.setDevice(1)
         cnn:forward(images[i])
+        adapt:forward(cnn.output)
 
         cutorch.setDevice(2)
         rnnNoseq:forget()
 
         cutorch.synchronizeAll()
-        rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, cnn.output)
+        rnnLayer.userPrevCell = nn.rnn.recursiveCopy(rnnLayer.userPrevCell, adapt.output)
 
         prediction = rnnNoseq:forward(input_tensor)
         prediction:exp()
         sample = torch.multinomial(prediction,1)
         char = model.numberToChar[sample[1]]
+
 
         while char ~= "END" and safeCounter<200 do
 
@@ -64,11 +67,14 @@ end
 
 function printOutput(imageFiles, generatedDescriptions, correctDescriptions)
     print("========SAMPLING=====================================================")
-    for i=1,#imageFiles do
-        print(correctDescriptions[i])
+    for i=1,#imageFiles-1 do
+        print("TARGET ++++"..correctDescriptions[i])
         print("+++++++++++")
-        print(generatedDescriptions[i])
-    print("------------------------------------------------------------")
+        print("SAMPLE ++++"..generatedDescriptions[i])
+        print("------------------------------------------------------------")
     end
+    print("TARGET ++++"..correctDescriptions[#imageFiles])
+    print("+++++++++++")
+    print("SAMPLE ++++"..generatedDescriptions[#imageFiles])
     print("=====================================================================")
 end

@@ -26,10 +26,11 @@ cmd:text('Options')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/COCO/train2014/",'Directory with the images with names according to the caption file.')
 cmd:text()
--- cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
-cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
+cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
+-- cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
 cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/1.0000__2x200.torch", 'Path to a pretrained RNN.')
-cmd:option('-batchSize',10,'Minibatch size.')
+cmd:option('-ft',false,'Finetune CNN on the dataset. (Enable CNN training.)')
+cmd:option('-batchSize',15,'Minibatch size.')
 cmd:option('-printError',2,'Print error once per N minibatches.')
 cmd:option('-sample',20,'Try to sample once per N minibatches.')
 cmd:option('-saveModel',1000,'Save model once per N minibatches.')
@@ -41,6 +42,11 @@ cmd:text()
 opt = cmd:parse(arg)
 
 training_params_cnn = {
+    learningRate=0.001,
+    beta1 = 0.92,
+    beta2 = 0.999
+}
+training_params_adapt = {
     learningRate=0.001,
     beta1 = 0.92,
     beta2 = 0.999
@@ -109,8 +115,12 @@ function training()
         return x[1], x_grad[1]
     end
 
-    function fevalRNN(x_new)
+    function fevalAdapt(x_new)
         return x[2], x_grad[2]
+    end
+
+    function fevalRNN(x_new)
+        return x[3], x_grad[3]
     end
 
     local images, inputs, targets = nextBatch()
@@ -119,15 +129,17 @@ function training()
     -- reset gradients (gradients are always accumulated, to accommodate batch methods)
     cutorch.setDevice(1)
     model.cnn:zeroGradParameters()
+    model.adapt:zeroGradParameters()
     cutorch.setDevice(2)
     model.rnn:zeroGradParameters()
 
     -- evaluate the loss function and its derivative wrt x, given mini batch
     cutorch.setDevice(1)
     model.cnn:forward(images)
+    model.adapt:forward(model.cnn.output)
     cutorch.synchronizeAll()
     cutorch.setDevice(2)
-    rnnLayer.userPrevOutput = nn.rnn.recursiveCopy(rnnLayer.userPrevOutput, model.cnn.output)
+    rnnLayer.userPrevCell = nn.rnn.recursiveCopy(rnnLayer.userPrevCell, model.adapt.output)
 
     local prediction = model.rnn:forward(inputs)
     local error = criterion:forward(prediction, targets)
@@ -137,13 +149,17 @@ function training()
 
     cutorch.synchronizeAll()
     cutorch.setDevice(1)
-    local gradPrevOutput = rnnLayer.gradPrevOutput:clone()
-    model.cnn:backward(images, gradPrevOutput)
+    local userGradPrevCellRNN = rnnLayer.userGradPrevCell:clone()
+    model.adapt:backward(model.cnn.output, userGradPrevCellRNN)
+    model.cnn:backward(images, model.adapt.gradInput)
 
     ----------------------------------------------------
-    local res1, fs1 = optim.adam(fevalCNN, x[1], model.cnn.training_params)
+    if model.opt.ft then
+        local res1, fs1 = optim.adam(fevalCNN, x[1], model.cnn.training_params)
+    end
+    local res2, fs2 = optim.adam(fevalAdapt, x[2], model.adapt.training_params)
     cutorch.setDevice(2)
-    local res2, fs2 = optim.adam(fevalRNN, x[2], model.rnn.training_params)
+    local res3, fs3 = optim.adam(fevalRNN, x[3], model.rnn.training_params)
     ----------------------------------------------------
 
     --SequencerCriterion just adds but not divide
@@ -165,13 +181,17 @@ end
 function saveModel(modelName, model)
 
     torch.save(modelName..".cnn", model.cnn)
+    torch.save(modelName..".adapt", model.adapt)
     torch.save(modelName..".rnn", model.rnn)
     local cnn = model.cnn
     model.cnn = nil
+    local adapt = model.adapt
+    model.adapt = nil
     local rnn = model.rnn
     model.rnn = nil
     torch.save(modelName, model)
     model.cnn = cnn
+    model.adapt = adapt
     model.rnn = rnn
 end
 
@@ -181,6 +201,7 @@ function loadModel(modelName)
     local model = torch.load(opt.modelName)
     cutorch.setDevice(1)
     model.cnn = torch.load(opt.modelName..'.cnn')
+    model.adapt = torch.load(opt.modelName..'.adapt')
     cutorch.setDevice(2)
     model.rnn = torch.load(opt.modelName..'.rnn')
 
@@ -237,9 +258,16 @@ else
     collectgarbage()
 
     cutorch.setDevice(1)
-    print("Adding adapter to CNN.")
-    cnn:add(nn.Linear(1000, rnnHiddenUnits))
-    cnn:add(nn.ReLU(true))
+    print("Creating adapter.")
+    local adapt
+    adapt = nn.Sequential()
+    adapt:add(nn.Linear(1000, 1000))
+    adapt:add(nn.Tanh())
+    adapt:add(nn.Linear(1000, rnnHiddenUnits))
+    adapt:add(nn.Tanh())
+    adapt:add(nn.Linear(rnnHiddenUnits, rnnHiddenUnits))
+    adapt.training_params = training_params_adapt
+    adapt:cuda()
 
     print("Moving CNN to CUDA.")
     cnn:cuda()
@@ -247,11 +275,7 @@ else
     model = {}
     model.cnn = nn.Serial(cnn)
     model.rnn = nn.Serial(rnn)
-
-    -- print("NOT wrapping in decorator Serial.")
-    -- model = nn.Serial(model)
-    -- model:mediumSerial()
-
+    model.adapt = nn.Serial(adapt)
     model.opt = opt
     model.evaluation_counter = 0
     model.charToNumber = charToNumber
@@ -269,8 +293,9 @@ criterion:cuda()
 x = {}; x_grad = {}
 cutorch.setDevice(1)
 x[1], x_grad[1] = model.cnn:getParameters() -- w,w_grad
+x[2], x_grad[2] = model.adapt:getParameters() -- w,w_grad
 cutorch.setDevice(2)
-x[2], x_grad[2] = model.rnn:getParameters() -- w,w_grad
+x[3], x_grad[3] = model.rnn:getParameters() -- w,w_grad
 
 tryToGenerate()
 
