@@ -13,6 +13,7 @@ require 'CNN'
 require 'RNN'
 require 'sample'
 require 'OneHotZero'
+require 'connections'
 
 
 cmd = torch.CmdLine()
@@ -30,6 +31,7 @@ cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_1
 -- cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
 cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/1.0000__2x200.torch", 'Path to a pretrained RNN.')
 cmd:option('-ft',false,'Finetune CNN on the dataset. (Enable CNN training.)')
+cmd:option('-initLayers',1,'How many reccurent layers initialize with CNN data. (0 - all of them)')
 cmd:option('-batchSize',15,'Minibatch size.')
 cmd:option('-printError',2,'Print error once per N minibatches.')
 cmd:option('-sample',20,'Try to sample once per N minibatches.')
@@ -41,16 +43,19 @@ cmd:text()
 -- parse input params
 opt = cmd:parse(arg)
 
+--used only with opt.ft
 training_params_cnn = {
     learningRate=0.001,
     beta1 = 0.92,
     beta2 = 0.999
 }
+-- sgd
 training_params_adapt = {
-    learningRate=0.001,
-    beta1 = 0.92,
-    beta2 = 0.999
+    learningRate=0.01,
+    momentum = 0.95,
+    nesterov = true
 }
+--adam
 training_params_rnn = {
     learningRate=0.001,
     beta1 = 0.92,
@@ -124,7 +129,6 @@ function training()
     end
 
     local images, inputs, targets = nextBatch()
-    local rnnLayer = model.rnn:get(1):get(1):get(1):get(1):get(1):get(2)
 
     -- reset gradients (gradients are always accumulated, to accommodate batch methods)
     cutorch.setDevice(1)
@@ -139,7 +143,8 @@ function training()
     model.adapt:forward(model.cnn.output)
     cutorch.synchronizeAll()
     cutorch.setDevice(2)
-    rnnLayer.userPrevCell = nn.rnn.recursiveCopy(rnnLayer.userPrevCell, model.adapt.output)
+
+    connectForward(model)
 
     local prediction = model.rnn:forward(inputs)
     local error = criterion:forward(prediction, targets)
@@ -149,15 +154,22 @@ function training()
 
     cutorch.synchronizeAll()
     cutorch.setDevice(1)
-    local userGradPrevCellRNN = rnnLayer.userGradPrevCell:clone()
-    model.adapt:backward(model.cnn.output, userGradPrevCellRNN)
+
+    local userGradPrevCell = connectBackward(model)
+
+    model.adapt:backward(model.cnn.output, userGradPrevCell)
     model.cnn:backward(images, model.adapt.gradInput)
 
+    -- print(model.cnn.output[1])
+    -- print(rnnLayer.cells[1][1])
+    -- print(rnnLayer.cells[40][1])
+    -- print(rnnLayer.cells[60][1])
+    -- os.exit()
     ----------------------------------------------------
     if model.opt.ft then
         local res1, fs1 = optim.adam(fevalCNN, x[1], model.cnn.training_params)
     end
-    local res2, fs2 = optim.adam(fevalAdapt, x[2], model.adapt.training_params)
+    local res2, fs2 = optim.sgd(fevalAdapt, x[2], model.adapt.training_params)
     cutorch.setDevice(2)
     local res3, fs3 = optim.adam(fevalRNN, x[3], model.rnn.training_params)
     ----------------------------------------------------
@@ -255,6 +267,19 @@ else
         print("RNN created.")
     end
     rnn.training_params = training_params_rnn
+
+    --opt.initLayers check
+    if opt.initLayers>1 then
+        local rnnLayers = 0
+        for i=1,rnn:get(1):get(1):get(1):get(1):size() do
+            if torch.isTypeOf(rnn:get(1):get(1):get(1):get(1):get(i),nn.AbstractRecurrent) then
+                rnnLayers = rnnLayers + 1
+            end
+        end
+        if rnnLayers < opt.initLayers then
+            error("Option initLayers wants to initialize too many layers. Total number of recurrent layers: "..rnnLayers)
+        end
+    end
     collectgarbage()
 
     cutorch.setDevice(1)
@@ -284,7 +309,6 @@ else
     print("Model created.")
 end
 
-
 --create criterion
 criterion = nn.SequencerCriterion(nn.MaskZeroCriterion(nn.ClassNLLCriterion(), 1))
 cutorch.setDevice(2)
@@ -304,11 +328,10 @@ while true do
     model.evaluation_counter = model.evaluation_counter + 1
 
     if model.evaluation_counter%model.opt.printError==0 then
-        print(string.format('minibatch %d (epoch %2.4f) has error %4.7f', model.evaluation_counter, (model.evaluation_counter*model.opt.batchSize)/#(js['annotations']), error))
+        print(string.format('minibatch %d (epoch %2.4f) has error %4.7f    memory in use: %d kB', model.evaluation_counter, (model.evaluation_counter*model.opt.batchSize)/#(js['annotations']), error,collectgarbage("count")))
     end
 
-
-    if model.evaluation_counter%15==0 then
+    if model.evaluation_counter%15 or collectgarbage("count")>400000==0 then
         collectgarbage()
     end
 

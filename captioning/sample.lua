@@ -1,3 +1,4 @@
+require 'connections'
 
 --model - as saved in training, no cuda
 --table of tensors of images 3x500x500
@@ -10,10 +11,8 @@ function sampleModel(model, images, input_char)
     model.cnn:evaluate() --no need to remember history
     model.rnn:evaluate() --no need to remember history
 
-    local cnn = model.cnn
-    local adapt = model.adapt
     local rnnNoseq = model.rnn:get(1):get(1):get(1):get(1)
-    local rnnLayer = rnnNoseq:get(1):get(2)
+    -- local rnnLayer = rnnNoseq:get(1):get(2)
 
     cutorch.setDevice(2)
     rnnNoseq:forget()
@@ -27,14 +26,15 @@ function sampleModel(model, images, input_char)
 
     for i=1, images:size()[1] do
         cutorch.setDevice(1)
-        cnn:forward(images[i])
-        adapt:forward(cnn.output)
+        model.cnn:forward(images[i])
+        model.adapt:forward(model.cnn.output)
 
         cutorch.setDevice(2)
         rnnNoseq:forget()
 
         cutorch.synchronizeAll()
-        rnnLayer.userPrevCell = nn.rnn.recursiveCopy(rnnLayer.userPrevCell, adapt.output)
+        -- rnnLayer.userPrevCell = nn.rnn.recursiveCopy(rnnLayer.userPrevCell, model.adapt.output)
+        connectForward(model)
 
         prediction = rnnNoseq:forward(input_tensor)
         prediction:exp()
