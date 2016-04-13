@@ -78,6 +78,11 @@ luarocks install cutorch
 luarocks install cunn
 ```
 
+```
+luarocks remove image --force
+luarocks install image
+```
+
 Instalace Tmuxu
 ---------------
 ```

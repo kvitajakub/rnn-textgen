@@ -12,7 +12,6 @@ function sampleModel(model, images, input_char)
     model.rnn:evaluate() --no need to remember history
 
     local rnnNoseq = model.rnn:get(1):get(1):get(1):get(1)
-    -- local rnnLayer = rnnNoseq:get(1):get(2)
 
     cutorch.setDevice(2)
     rnnNoseq:forget()
@@ -33,7 +32,6 @@ function sampleModel(model, images, input_char)
         rnnNoseq:forget()
 
         cutorch.synchronizeAll()
-        -- rnnLayer.userPrevCell = nn.rnn.recursiveCopy(rnnLayer.userPrevCell, model.adapt.output)
         connectForward(model)
 
         prediction = rnnNoseq:forward(input_tensor)
