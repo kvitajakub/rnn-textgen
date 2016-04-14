@@ -19,16 +19,13 @@ require 'connections'
 cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
-cmd:text('Train a CNN-RNN network for generating image captions.')
+cmd:text('Do one epoch of training of a CNN-RNN network for generating image captions.')
 cmd:text()
 cmd:text('Options')
--- cmd:option('-captionFile',"/home/jkvita/DATA/Diplomka-data/coco/annotations/captions_train2014_small.json",'JSON file with the input data (captions, image names).')
--- cmd:option('-imageDirectory',"/home/jkvita/DATA/Diplomka-data/coco/train2014/",'Directory with the images with names according to the caption file.')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/COCO/train2014/",'Directory with the images with names according to the caption file.')
 cmd:text()
 cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
--- cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/nin.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
 cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/1.0000__2x200.torch", 'Path to a pretrained RNN.')
 cmd:option('-ft',false,'Finetune CNN on the dataset. (Enable CNN training.)')
 cmd:option('-initLayers',1,'How many reccurent layers initialize with CNN data. (0 - all of them)')
@@ -37,7 +34,7 @@ cmd:option('-printError',2,'Print error once per N minibatches.')
 cmd:option('-sample',20,'Try to sample once per N minibatches.')
 cmd:option('-saveModel',1000,'Save model once per N minibatches.')
 cmd:option('-modelName','model.torch','File name of the saved or loaded model and training data.')
-cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/combined_model/','Directory where to save the model.(add / at the end)')
+cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/combined_model','Directory where to save the model.')
 cmd:text()
 
 -- parse input params
@@ -160,11 +157,6 @@ function training()
     model.adapt:backward(model.cnn.output, userGradPrevCell)
     model.cnn:backward(images, model.adapt.gradInput)
 
-    -- print(model.cnn.output[1])
-    -- print(rnnLayer.cells[1][1])
-    -- print(rnnLayer.cells[40][1])
-    -- print(rnnLayer.cells[60][1])
-    -- os.exit()
     ----------------------------------------------------
     if model.opt.ft then
         local res1, fs1 = optim.adam(fevalCNN, x[1], model.cnn.training_params)
@@ -262,8 +254,8 @@ else
         rnn = rnnModel.rnn
         rnnHiddenUnits = rnnModel.opt.hiddenUnits
     else
-        rnnHiddenUnits = 500
-        rnn = RNN.createRNN(#numberToChar, 5, rnnHiddenUnits)
+        rnnHiddenUnits = 300
+        rnn = RNN.createRNN(#numberToChar, 4, rnnHiddenUnits)
         print("RNN created.")
     end
     rnn.training_params = training_params_rnn
@@ -323,7 +315,9 @@ x[3], x_grad[3] = model.rnn:getParameters() -- w,w_grad
 
 tryToGenerate()
 
-while true do
+
+epochNum = math.floor((model.evaluation_counter * model.opt.batchSize) / #(js['annotations']))
+while model.evaluation_counter * model.opt.batchSize - epochNum * #(js['annotations']) < #(js['annotations']) do
     error = training()
     model.evaluation_counter = model.evaluation_counter + 1
 
@@ -340,14 +334,15 @@ while true do
         tryToGenerate()
     end
 
-
+    --save model each N minibatches
     if model.evaluation_counter%model.opt.saveModel==0 then
         local name = string.format('%2.4f',(model.evaluation_counter*model.opt.batchSize)/#(js['annotations']))..'__'..model.opt.modelName
-
-        saveModel(model.opt.modelDirectory..name, model)
-
-        print(" >>> Model and data saved to "..model.opt.modelDirectory..name)
+        saveModel(model.opt.modelDirectory..'/'..name, model)
+        print(" >>> Model and data saved to "..model.opt.modelDirectory..'/'..name)
     end
-
-
 end
+
+--save model after epoch
+local name = string.format('%2.4f',(model.evaluation_counter*model.opt.batchSize)/#(js['annotations']))..'__'..model.opt.modelName
+saveModel(model.opt.modelDirectory..'/'..name, model)
+print(" >>> Model and data saved to "..model.opt.modelDirectory..'/'..name)
