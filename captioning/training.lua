@@ -28,6 +28,9 @@ cmd:text()
 cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
 cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/1.0000__2x200.torch", 'Path to a pretrained RNN.')
 cmd:option('-ft',false,'Finetune CNN on the dataset. (Enable CNN training.)')
+cmd:option('-rnnLayers',3,'Number of recurrent layers while creating RNN. (At least one.)')
+cmd:option('-rnnHidden',300,'Number of units in hidden layers while creating RNN. (At least one.)')
+cmd:option('-rnnDropout',false,'Use dropout while creating RNN.')
 cmd:option('-initLayers',1,'How many reccurent layers initialize with CNN data. (0 - all of them)')
 cmd:option('-batchSize',15,'Minibatch size.')
 cmd:option('-printError',2,'Print error once per N minibatches.')
@@ -254,8 +257,9 @@ else
         rnn = rnnModel.rnn
         rnnHiddenUnits = rnnModel.opt.hiddenUnits
     else
-        rnnHiddenUnits = 300
-        rnn = RNN.createRNN(#numberToChar, 4, rnnHiddenUnits)
+        rnnHiddenUnits = opt.rnnHidden
+        rnn = RNN.createRNN(#numberToChar, opt.rnnLayers, opt.rnnHidden, opt.rnnDropout)
+        rnn:cuda()
         print("RNN created.")
     end
     rnn.training_params = training_params_rnn
