@@ -89,6 +89,8 @@ end
 function loadAndPrepare(imageFile, outputSize)
     outputSize = outputSize or 500
 
+    local MEAN_PIXEL = {123.68, 116.779, 103.939} --mean pixel from VGG paper for subtracting
+
     if type(imageFile) == "table" then
 
         local images = {}
@@ -120,6 +122,14 @@ function loadAndPrepare(imageFile, outputSize)
         end
 
         im = image.scale(im,outputSize)
+
+        im = im * 255 --change range from [0,1] to [0,255]
+
+        im[1] = im[1] - MEAN_PIXEL[1] --subtracting mean values
+        im[2] = im[2] - MEAN_PIXEL[2]
+        im[3] = im[3] - MEAN_PIXEL[3]
+
+        im[1], im[3] = im[3], im[1] -- RGB to BGR
 
         return im
 

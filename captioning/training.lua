@@ -25,7 +25,7 @@ cmd:text('Options')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/COCO/train2014/",'Directory with the images with names according to the caption file.')
 cmd:text()
-cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers.torch", 'Path to a ImageNet pretrained CNN in Torch format.')
+cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers_fc6.torch", 'Path to a ImageNet pretrained CNN in Torch format. Do not change.')
 cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/1.0000__2x200.torch", 'Path to a pretrained RNN.')
 cmd:option('-ft',false,'Finetune CNN on the dataset. (Enable CNN training.)')
 cmd:option('-rnnLayers',3,'Number of recurrent layers while creating RNN. (At least one.)')
@@ -282,11 +282,11 @@ else
     print("Creating adapter.")
     local adapt
     adapt = nn.Sequential()
-    adapt:add(nn.Linear(1000, 1000))
+    adapt:add(nn.Linear(4096, 4096))
+    adapt:add(nn.Tanh())
+    adapt:add(nn.Linear(4096, 1000))
     adapt:add(nn.Tanh())
     adapt:add(nn.Linear(1000, rnnHiddenUnits))
-    adapt:add(nn.Tanh())
-    adapt:add(nn.Linear(rnnHiddenUnits, rnnHiddenUnits))
     adapt.training_params = training_params_adapt
     adapt:cuda()
 
