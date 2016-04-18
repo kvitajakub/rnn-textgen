@@ -25,7 +25,7 @@ cmd:text('Options')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/COCO/train2014/",'Directory with the images with names according to the caption file.')
 cmd:text()
-cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers_fc6.torch", 'Path to a ImageNet pretrained CNN in Torch format. Do not change.')
+cmd:option('-pretrainedCNN',"/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers_fc7.torch", 'Path to a ImageNet pretrained CNN in Torch format. Do not change.')
 cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/1.0000__2x200.torch", 'Path to a pretrained RNN.')
 cmd:option('-ft',false,'Finetune CNN on the dataset. (Enable CNN training.)')
 cmd:option('-rnnLayers',3,'Number of recurrent layers while creating RNN. (At least one.)')
@@ -50,10 +50,15 @@ training_params_cnn = {
     beta2 = 0.999
 }
 -- sgd
+-- training_params_adapt = {
+--     learningRate=0.01,
+--     momentum = 0.95,
+--     nesterov = true
+-- }
 training_params_adapt = {
-    learningRate=0.01,
-    momentum = 0.95,
-    nesterov = true
+    learningRate=0.001,
+    beta1 = 0.92,
+    beta2 = 0.999
 }
 --adam
 training_params_rnn = {
@@ -164,7 +169,7 @@ function training()
     if model.opt.ft then
         local res1, fs1 = optim.adam(fevalCNN, x[1], model.cnn.training_params)
     end
-    local res2, fs2 = optim.sgd(fevalAdapt, x[2], model.adapt.training_params)
+    local res2, fs2 = optim.adam(fevalAdapt, x[2], model.adapt.training_params)
     cutorch.setDevice(2)
     local res3, fs3 = optim.adam(fevalRNN, x[3], model.rnn.training_params)
     ----------------------------------------------------
@@ -282,8 +287,6 @@ else
     print("Creating adapter.")
     local adapt
     adapt = nn.Sequential()
-    adapt:add(nn.Linear(4096, 4096))
-    adapt:add(nn.Tanh())
     adapt:add(nn.Linear(4096, 1000))
     adapt:add(nn.Tanh())
     adapt:add(nn.Linear(1000, rnnHiddenUnits))

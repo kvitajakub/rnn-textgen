@@ -87,9 +87,7 @@ end
 
 
 function loadAndPrepare(imageFile, outputSize)
-    outputSize = outputSize or 500
-
-    local MEAN_PIXEL = {123.68, 116.779, 103.939} --mean pixel from VGG paper for subtracting
+    outputSize = outputSize or 224
 
     if type(imageFile) == "table" then
 
@@ -109,21 +107,12 @@ function loadAndPrepare(imageFile, outputSize)
     else
 
         local im = image.load(imageFile,3) -- nChannel x height x width
-        local s = im:size()
 
-        if s[2] > s[3] then
-            --height > width
-            local cropNumber = (s[2]-s[3])/2
-            im = image.crop(im,0,cropNumber,s[3],s[2]-cropNumber) --height and width flipped
-        elseif s[2] < s[3] then
-            --height < width
-            local cropNumber = (s[3]-s[2])/2
-            im = image.crop(im,cropNumber,0,s[3]-cropNumber,s[2]) --height and width flipped
-        end
-
-        im = image.scale(im,outputSize)
+        im = image.scale(im, outputSize, outputSize) --scale to 224x224 (not keeping aspect ratio)
 
         im = im * 255 --change range from [0,1] to [0,255]
+
+        local MEAN_PIXEL = {123.68, 116.779, 103.939} --mean pixel from VGG paper for subtracting
 
         im[1] = im[1] - MEAN_PIXEL[1] --subtracting mean values
         im[2] = im[2] - MEAN_PIXEL[2]
