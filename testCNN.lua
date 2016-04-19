@@ -9,7 +9,8 @@ file:close()
 js = cjson.decode(content)
 
 
-model = torch.load("/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers_full.torch")
+-- model = torch.load("/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers_full.torch")
+model = torch.load("/storage/brno7-cerit/home/xkvita01/CNN/nin_imagenet_full.torch")
 
 
 local MEAN_PIXEL = {123.68, 116.779, 103.939} --mean pixel from VGG paper for subtracting
@@ -28,6 +29,7 @@ for i=1,#js['images'] do
 
     o = model:forward(im)
     print(i.."  "..torch.max(o))
+    o = o:squeeze()
     if torch.max(o) > 0.7 then
         m = -1
         for j=1,o:size()[1] do

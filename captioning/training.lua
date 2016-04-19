@@ -256,13 +256,11 @@ else
     print("Loading RNN.")
     cutorch.setDevice(2)
     local rnn
-    local rnnHiddenUnits
     if opt.pretrainedRNN ~= "" and path.exists(opt.pretrainedRNN) then
         local rnnModel = torch.load(opt.pretrainedRNN)
         rnn = rnnModel.rnn
-        rnnHiddenUnits = rnnModel.opt.hiddenUnits
+        opt.rnnHidden = rnnModel.opt.hiddenUnits
     else
-        rnnHiddenUnits = opt.rnnHidden
         rnn = RNN.createRNN(#numberToChar, opt.rnnLayers, opt.rnnHidden, opt.rnnDropout)
         rnn:cuda()
         print("RNN created.")
@@ -270,16 +268,16 @@ else
     rnn.training_params = training_params_rnn
 
     --opt.initLayers check
-    if opt.initLayers>1 then
-        local rnnLayers = 0
-        for i=1,rnn:get(1):get(1):get(1):get(1):size() do
-            if torch.isTypeOf(rnn:get(1):get(1):get(1):get(1):get(i),nn.AbstractRecurrent) then
-                rnnLayers = rnnLayers + 1
-            end
+    local rnnLayers = 0
+    for i=1,rnn:get(1):get(1):get(1):get(1):size() do
+        if torch.isTypeOf(rnn:get(1):get(1):get(1):get(1):get(i),nn.AbstractRecurrent) then
+            rnnLayers = rnnLayers + 1
         end
-        if rnnLayers < opt.initLayers then
-            error("Option initLayers wants to initialize too many layers. Total number of recurrent layers: "..rnnLayers)
-        end
+    end
+    if opt.initLayers == 0 then
+        opt.initLayers = rnnLayers
+    elseif rnnLayers < opt.initLayers then
+        error("Option initLayers wants to initialize too many layers. Total number of recurrent layers: "..rnnLayers)
     end
     collectgarbage()
 
@@ -287,9 +285,9 @@ else
     print("Creating adapter.")
     local adapt
     adapt = nn.Sequential()
-    adapt:add(nn.Linear(4096, 1000))
+    adapt:add(nn.Linear(4096, opt.rnnHidden * opt.initLayers))
     adapt:add(nn.Tanh())
-    adapt:add(nn.Linear(1000, rnnHiddenUnits))
+    adapt:add(nn.Linear(opt.rnnHidden * opt.initLayers, opt.rnnHidden * opt.initLayers))
     adapt.training_params = training_params_adapt
     adapt:cuda()
 
