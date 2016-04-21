@@ -8,9 +8,14 @@ content = file:read("*a")
 file:close()
 js = cjson.decode(content)
 
+file = io.open("ImageNetClasses_sorted.json","r")
+content = file:read("*a")
+file:close()
+class = cjson.decode(content)
 
--- model = torch.load("/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers_full.torch")
-model = torch.load("/storage/brno7-cerit/home/xkvita01/CNN/nin_imagenet_full.torch")
+
+model = torch.load("/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers_full.torch")
+-- model = torch.load("/storage/brno7-cerit/home/xkvita01/CNN/nin_imagenet_full.torch")
 
 
 local MEAN_PIXEL = {123.68, 116.779, 103.939} --mean pixel from VGG paper for subtracting
@@ -37,7 +42,7 @@ for i=1,#js['images'] do
                 m = j
             end
         end
-        print(js['images'][i]['file_name'].."   "..m)
+        print(js['images'][i]['file_name'].."   "..m.."   "..class[m]['name'])
     end
     collectgarbage()
 end
