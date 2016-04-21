@@ -8,10 +8,8 @@ content = file:read("*a")
 file:close()
 js = cjson.decode(content)
 
-file = io.open("ImageNetClasses_sorted.json","r")
-content = file:read("*a")
-file:close()
-class = cjson.decode(content)
+synset_words = {}
+for line in io.lines'synset_words.txt' do table.insert(synset_words, line:sub(11)) end
 
 
 model = torch.load("/storage/brno7-cerit/home/xkvita01/CNN/VGG_ILSVRC_16_layers_full.torch")
@@ -42,7 +40,7 @@ for i=1,#js['images'] do
                 m = j
             end
         end
-        print(js['images'][i]['file_name'].."   "..m.."   "..class[m]['name'])
+        print(js['images'][i]['file_name'].."   "..m.."   "..synset_words[m])
     end
     collectgarbage()
 end
