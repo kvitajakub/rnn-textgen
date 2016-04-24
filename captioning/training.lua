@@ -283,9 +283,10 @@ else
 
     cutorch.setDevice(1)
     print("Creating adapter.")
+    local cnnOutput = cnn:forward(torch.randn(3,224,224))
     local adapt
     adapt = nn.Sequential()
-    adapt:add(nn.Linear(4096, opt.rnnHidden * opt.initLayers))
+    adapt:add(nn.Linear(cnnOutput:size()[cnnOutput:dim()], opt.rnnHidden * opt.initLayers))
     adapt:add(nn.Tanh())
     adapt:add(nn.Linear(opt.rnnHidden * opt.initLayers, opt.rnnHidden * opt.initLayers))
     adapt.training_params = training_params_adapt
