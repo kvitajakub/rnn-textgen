@@ -13,20 +13,20 @@ require 'sampleRNN'
 cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
-cmd:text('Train a RNN  part of the network for generating image captions.')
+cmd:text('Train a RNN language model for generating image captions.')
 cmd:text()
 cmd:text('Options')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:text()
-cmd:option('-recurLayers',2,'Number of recurrent layers. (At least one.)')
-cmd:option('-hiddenUnits',200,'Number of units in hidden layers. (At least one.)')
+cmd:option('-recurLayers',3,'Number of recurrent layers. (At least one.)')
+cmd:option('-hiddenUnits',300,'Number of units in hidden layers. (At least one.)')
 cmd:option('-dropout',false,'Use dropout.')
 cmd:option('-batchSize',15,'Minibatch size.')
-cmd:option('-printError',25,'Print error once per N minibatches.')
+cmd:option('-printError',10,'Print error once per N minibatches.')
 cmd:option('-sample',100,'Try to sample once per N minibatches.')
-cmd:option('-saveModel',1000,'Save model once per N minibatches.')
+cmd:option('-saveModel',10000,'Save model once per N minibatches.')
 cmd:option('-modelName','rnn.torch','Filename of the model and training data.')
-cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/RNN/','Directory where to save the model.(add / at the end)')
+cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/RNN/','Directory where to save the model.')
 cmd:text()
 
 -- parse input params
@@ -186,14 +186,14 @@ while model.training_params.evaluation_counter * model.opt.batchSize - epochNum 
     end
 
     --save
-    -- if model.training_params.evaluation_counter%model.opt.saveModel==0 then
-    --     local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#captions)..'__'..model.opt.modelName
-    --     torch.save(model.opt.modelDirectory..name, model)
-    --     print("Model saved to "..model.opt.modelDirectory..name)
-    -- end
+    if model.training_params.evaluation_counter%model.opt.saveModel==0 then
+        local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#captions)..'__'..model.opt.modelName
+        torch.save(model.opt.modelDirectory..'/'..name, model)
+        print("Model saved to "..model.opt.modelDirectory..name)
+    end
 end
 
 --save the trained epoch
 local name = string.format('%2.4f',(model.training_params.evaluation_counter*model.opt.batchSize)/#captions)..'__'..model.opt.modelName
-torch.save(model.opt.modelDirectory..name, model)
+torch.save(model.opt.modelDirectory..'/'..name, model)
 print("Model saved to "..model.opt.modelDirectory..name)

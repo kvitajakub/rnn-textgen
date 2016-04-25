@@ -18,41 +18,35 @@ require 'makeBag'
 cmd = torch.CmdLine()
 cmd:text()
 cmd:text()
-cmd:text('Do one epoch of training of a CNN-RNN network for generating image captions.')
+cmd:text('Training of the RNN network for generating image captions initialized with binary bag of words.')
 cmd:text()
 cmd:text('Options')
 cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
 cmd:option('-imageDirectory',"/storage/brno7-cerit/home/xkvita01/COCO/train2014/",'Directory with the images with names according to the caption file.')
 cmd:text()
 cmd:option('-pretrainedRNN',"/storage/brno7-cerit/home/xkvita01/RNN/2.0000__3x300.torch", 'Path to a pretrained RNN.')
-cmd:option('-ft',false,'Finetune CNN on the dataset. (Enable CNN training.)')
-cmd:option('-rnnLayers',3,'Number of recurrent layers while creating RNN. (At least one.)')
-cmd:option('-rnnHidden',300,'Number of units in hidden layers while creating RNN. (At least one.)')
-cmd:option('-rnnDropout',false,'Use dropout while creating RNN.')
-cmd:option('-initLayers',1,'How many reccurent layers initialize with CNN data. (0 - all of them)')
+cmd:text()
+cmd:option('-rnnLayers',3,'If no RNN is provided, number of recurrent layers while creating RNN. (At least one.)')
+cmd:option('-rnnHidden',300,'If no RNN is provided, number of units in hidden layers while creating RNN. (At least one.)')
+cmd:option('-rnnDropout',false,'If no RNN is provided, use dropout while creating RNN.')
+cmd:text()
+cmd:option('-initLayers',0,'How many reccurent layers initialize with CNN data. (0 - all of them)')
 cmd:option('-batchSize',15,'Minibatch size.')
-cmd:option('-printError',2,'Print error once per N minibatches.')
-cmd:option('-sample',20,'Try to sample once per N minibatches.')
-cmd:option('-saveModel',1000,'Save model once per N minibatches.')
-cmd:option('-modelName','model.torch','File name of the saved or loaded model and training data.')
-cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/combined_model','Directory where to save the model.')
+cmd:option('-printError',10,'Print error once per N minibatches.')
+cmd:option('-sample',100,'Try to sample once per N minibatches.')
+cmd:option('-saveModel',10000,'Save model once per N minibatches.')
+cmd:option('-modelName','model_bag.torch','File name of the saved or loaded model and training data.')
+cmd:option('-modelDirectory','/storage/brno7-cerit/home/xkvita01/combined_model/','Directory where to save the model.')
 cmd:text()
 
 -- parse input params
 opt = cmd:parse(arg)
 
--- sgd
--- training_params_adapt = {
---     learningRate=0.01,
---     momentum = 0.95,
---     nesterov = true
--- }
 training_params_adapt = {
     learningRate=0.001,
     beta1 = 0.92,
     beta2 = 0.999
 }
---adam
 training_params_rnn = {
     learningRate=0.001,
     beta1 = 0.92,
