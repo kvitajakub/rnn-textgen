@@ -8,7 +8,7 @@ require 'cunn'
 require '../RNN'
 require '../cocodata'
 require '../OneHotZero'
-require 'sampleRNN'
+require 'sample'
 
 cmd = torch.CmdLine()
 cmd:text()

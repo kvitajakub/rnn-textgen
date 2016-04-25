@@ -14,7 +14,6 @@ function sample(model)
     -- -- generation with initialization by specific character (start character)
     local randomCharNumber = model.charToNumber['START']
     prediction = samplingRnn:forward(torch.CudaTensor{randomCharNumber})
-    -- prediction = samplingRnn:forward(torch.CudaTensor{randomCharNumber})
     prediction:exp()
     sample = torch.multinomial(prediction,1)
     char = model.numberToChar[sample[1]]
