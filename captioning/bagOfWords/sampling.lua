@@ -1,7 +1,7 @@
 --usual
 require 'torch'
 --uncommon
-require 'tds'
+tds = require 'tds'
 require 'rnn'
 require 'dpnn'
 require 'cutorch'

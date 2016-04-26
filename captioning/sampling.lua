@@ -3,9 +3,14 @@ require 'torch'
 --uncommon
 require 'rnn'
 require 'dpnn'
+require 'cutorch'
+require 'cunn'
+tds = require 'tds'
 --local
 require 'cocodata'
 require 'sample'
+require 'OneHotZero'
+require 'connections'
 
 
 cmd = torch.CmdLine()
