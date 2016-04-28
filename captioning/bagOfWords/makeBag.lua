@@ -41,3 +41,22 @@ function captionToBag(bag, caption)
     end
     return tensor
 end
+
+function groupCaptions(js)
+    local group = {}
+
+    for i=1,#js['annotations'] do
+        if group[js['annotations'][i]['image_id']] == nil then
+            group[js['annotations'][i]['image_id']] = { js['annotations'][i]['caption'] }
+        else
+            table.insert(group[js['annotations'][i]['image_id']], js['annotations'][i]['caption'])
+        end
+    end
+
+    --squeeze table to beginning
+    local result = {}
+    for _,v in pairs(group) do
+        table.insert(result, v)
+    end
+    return result
+end
