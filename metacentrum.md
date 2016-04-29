@@ -47,7 +47,6 @@ luarocks install cunn
 luarocks install cunnx
 luarocks install rnn
 luarocks install tds
-luarocks install profi
 ```
 
 Updatovani Lua baliku, nechce se mi hledat jak to delat

@@ -12,7 +12,6 @@ require 'sample'
 
 cmd = torch.CmdLine()
 cmd:text()
-cmd:text()
 cmd:text('Train a RNN language model for generating image captions.')
 cmd:text()
 cmd:text('Options')

@@ -18,7 +18,6 @@ require 'connections'
 
 cmd = torch.CmdLine()
 cmd:text()
-cmd:text()
 cmd:text('Training of the CNN-RNN network for generating image captions.')
 cmd:text()
 cmd:text('Options')

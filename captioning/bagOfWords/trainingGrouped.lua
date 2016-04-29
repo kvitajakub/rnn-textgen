@@ -17,7 +17,6 @@ require 'makeBag'
 
 cmd = torch.CmdLine()
 cmd:text()
-cmd:text()
 cmd:text('Training of the RNN network for generating image captions initialized with binary bag of words.')
 cmd:text()
 cmd:text('Options')

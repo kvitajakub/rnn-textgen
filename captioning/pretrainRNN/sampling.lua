@@ -10,12 +10,10 @@ require 'sample'
 
 cmd = torch.CmdLine()
 cmd:text()
-cmd:text()
 cmd:text('Sample a language model for generating image captions.')
 cmd:text()
 cmd:text('Options')
 cmd:option('-modelName','rnn.torch','Filename of the model and training data.')
-cmd:text()
 cmd:option('-N',4,'How many captions will be generated.')
 cmd:text()
 

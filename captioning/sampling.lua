@@ -15,12 +15,10 @@ require 'connections'
 
 cmd = torch.CmdLine()
 cmd:text()
-cmd:text()
 cmd:text('Generate captions for images with trained model.')
 cmd:text()
 cmd:text('Options')
 cmd:option('-modelName','model.torch','Name of the model to be loaded.')
-cmd:text()
 cmd:option('-N',3,'How many captions will be generated.')
 cmd:text()
 
