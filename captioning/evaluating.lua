@@ -27,6 +27,7 @@ cmd:text()
 cmd:option('-modelName','/storage/brno7-cerit/home/xkvita01/combined_model/0.7244__3x300_view_ft.torch','File name of the saved or loaded model and training data.')
 cmd:text()
 cmd:option('-printError',10,'Print error once per N minibatches.')
+cmd:option('-saveOutput','error.torch','Save the computed error')
 cmd:text()
 
 
@@ -183,7 +184,12 @@ while model.evaluation_counter * model.opt.batchSize - epochNum * #(js['annotati
         collectgarbage()
     end
 
+    if model.evaluation_counter%300==0 then
+        data = {errorEpoch, errorCount}
+        torch.save(opt.saveOutput,data)
+        print(" >>> Error saved "..opt.saveOutput)
+    end
 end
 
-print('Average error for model:')
-print(errorEpoch:cdiv(errorCount))
+data = {errorEpoch, errorCount}
+torch.save(opt.saveOutput,data)

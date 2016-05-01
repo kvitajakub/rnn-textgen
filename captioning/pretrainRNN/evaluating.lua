@@ -19,6 +19,7 @@ cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_trai
 cmd:text()
 cmd:option('-printError',10,'Print error once per N minibatches.')
 cmd:option('-modelName','/storage/brno7-cerit/home/xkvita01/RNN/1.0000__3x300.torch','Filename of the model and training data.')
+cmd:option('-saveOutput','error.torch','Save the computed error')
 cmd:text()
 
 -- parse input params
@@ -152,7 +153,13 @@ while model.training_params.evaluation_counter * model.opt.batchSize - epochNum 
         collectgarbage()
     end
 
+    if model.training_params.evaluation_counter%300==0 then
+        data = {errorEpoch, errorCount}
+        torch.save(opt.saveOutput,data)
+        print(" >>> Error saved "..opt.saveOutput)
+    end
+
 end
 
-print('Average error for model:')
-print(errorEpoch:cdiv(errorCount))
+data = {errorEpoch, errorCount}
+torch.save(opt.saveOutput,data)
