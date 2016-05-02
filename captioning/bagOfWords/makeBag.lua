@@ -36,7 +36,9 @@ function captionToBag(bag, caption)
     local cap = string.split(string.lower(caption),'[ .,"]')
     for j=1, #cap do
         if cap[j] ~= '' then
-            tensor[bag['data'][cap[j]]] = 1
+            if bag['data'][cap[j]] ~= nil then
+                tensor[bag['data'][cap[j]]] = 1
+            end
         end
     end
     return tensor
