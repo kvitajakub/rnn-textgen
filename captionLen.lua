@@ -23,8 +23,11 @@ require 'gnuplot'
 
 x = torch.linspace(1,150,150)
 
-gnuplot.raw('set key font "FreeSerif,18"')
-gnuplot.title("Length distribution of training sequences")
+gnuplot.pdffigure("sequence_length_distribution.pdf")
+
+-- gnuplot.raw('set key box')
+-- gnuplot.raw('set title font "Courier,14"')
+-- gnuplot.title("Length distribution of training sequences")
 gnuplot.xlabel("Length")
 gnuplot.ylabel("Percentage of sequences")
 

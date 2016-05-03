@@ -19,7 +19,8 @@ gnuplot.xlabel("Character position")
 gnuplot.ylabel("Negative log likelihood")
 
 gnuplot.movelegend('right','top')
-gnuplot.raw('set key font "FreeSerif,18"')
+gnuplot.raw('set key box')
+gnuplot.raw('set key font "Courier,16"')
 
 gnuplot.grid(true)
 
