@@ -15,7 +15,7 @@ cmd:text()
 cmd:text('Evaluating a RNN language model for generating image captions.')
 cmd:text()
 cmd:text('Options')
-cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_train2014.json",'JSON file with the input data (captions, image names).')
+cmd:option('-captionFile',"/storage/brno7-cerit/home/xkvita01/COCO/captions_val2014.json",'JSON file with the input data (captions, image names).')
 cmd:text()
 cmd:option('-printError',10,'Print error once per N minibatches.')
 cmd:option('-modelName','/storage/brno7-cerit/home/xkvita01/RNN/1.0000__3x300.torch','Filename of the model and training data.')
@@ -43,7 +43,7 @@ if opt.modelName ~= "" and path.exists(opt.modelName) then
     print('Parameters overriden.')
     print(model.opt)
 
-    js = loadCaptions(model.opt.captionFile)
+    js = loadCaptions(opt.captionFile)
     captions = listCaptions(js)
 
 else

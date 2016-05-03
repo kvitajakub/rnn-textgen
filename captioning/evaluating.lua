@@ -40,7 +40,7 @@ function nextBatch()
 
     --get samples from caption file
     local startIndex = model.evaluation_counter*model.opt.batchSize
-    local imageFiles, capt = imageSample(js, model.opt.batchSize, model.opt.imageDirectory, startIndex)
+    local imageFiles, capt = imageSample(js, model.opt.batchSize, opt.imageDirectory, startIndex)
     local maxlen = 0
 
     --prepare images
@@ -136,7 +136,7 @@ if path.exists(opt.modelName) then
     --load saved model
     model = loadModel(opt.modelName)
 
-    js = tds.Hash(loadCaptions(model.opt.captionFile))
+    js = tds.Hash(loadCaptions(opt.captionFile))
 
     model.opt.printError = opt.printError
     model.evaluation_counter = 0

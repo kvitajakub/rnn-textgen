@@ -136,7 +136,7 @@ if path.exists(opt.modelName) then
     --load saved model
     model = loadModel(opt.modelName)
 
-    js = tds.Hash(loadCaptions(model.opt.captionFile))
+    js = tds.Hash(loadCaptions(opt.captionFile))
 
     model.opt.printError = opt.printError
     model.evaluation_counter = 0
