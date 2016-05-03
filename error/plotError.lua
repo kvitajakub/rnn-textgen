@@ -13,6 +13,8 @@ for k,v in ipairs(arg) do
 end
 
 gnuplot.pdffigure("out.pdf")
+gnuplot.raw('set terminal pdf size 4.5,3')
+
 
 gnuplot.title("")
 gnuplot.xlabel("Character position")
@@ -20,7 +22,7 @@ gnuplot.ylabel("Negative log likelihood")
 
 gnuplot.movelegend('right','top')
 gnuplot.raw('set key box')
-gnuplot.raw('set key font "Courier,16"')
+gnuplot.raw('set key font "Courier,15"')
 
 gnuplot.grid(true)
 

@@ -24,6 +24,7 @@ require 'gnuplot'
 x = torch.linspace(1,150,150)
 
 gnuplot.pdffigure("sequence_length_distribution.pdf")
+gnuplot.raw('set terminal pdf size 4.5,3')
 
 -- gnuplot.raw('set key box')
 -- gnuplot.raw('set title font "Courier,14"')
