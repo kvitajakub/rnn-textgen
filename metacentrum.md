@@ -36,12 +36,12 @@ TORCH_LUA_VERSION=LUA52 ./install.sh
 ```
 Potreba updatovat nn balik, kvuli nejakym problemum s Cudou.
 ```
-luarocks remove nn
+luarocks remove nn --force
 luarocks install nn
 ```
 Doinstalovani baliku pro CUDA a rekurentni site...
 ```
-module add cuda-6.5
+module add cuda-7.0
 luarocks install cutorch
 luarocks install cunn
 luarocks install cunnx
@@ -106,7 +106,7 @@ cd /storage/brno2/home/xkvita01/
 module add cmake-3.2.3
 module add intelcdk-15
 module add openmpi-intel
-module add cuda-6.5
+module add cuda-7.0
 ```
 Vybereme jaky interpret chceme
 
@@ -130,7 +130,7 @@ cd /storage/brno2/home/xkvita01/
 module add cmake-3.2.3
 module add intelcdk-15
 module add openmpi-intel
-module add cuda-6.5
+module add cuda-7.0
 export OMP_NUM_THREADS=1
 . /storage/brno2/home/xkvita01/torch/install/bin/torch-activate
 ```
