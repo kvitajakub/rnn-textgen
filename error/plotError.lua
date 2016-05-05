@@ -22,11 +22,10 @@ gnuplot.ylabel("Negative log likelihood")
 
 gnuplot.movelegend('right','top')
 gnuplot.raw('set key box')
+gnuplot.raw('set key Left')
 gnuplot.raw('set key font "Courier,15"')
 
 gnuplot.grid(true)
-
-gnuplot.axis({0,91,0.4,2.2})
 
 gnuplot.plot(unpack(d))
 gnuplot.plotflush()
